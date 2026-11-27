@@ -28,6 +28,8 @@
 
 Windows 使用 `.\gradlew.bat build`，产物位于 `build/libs/`。多人游戏请在服务端和客户端安装相匹配的模组版本。
 
+推送到 `26.3-fabric` 或向该分支提交拉取请求时，GitHub Actions 会自动构建，也可在 **Actions → Build** 手动运行。构建成功后可从该次运行的 **Artifacts** 下载模组 JAR；它不会自动发布到 Releases。
+
 部分玩偶 ID 与旧版不同，升级前请备份存档。普通玩偶的部分映射见 [26.3 ID 对照表](docs/doll-id-mapping-26.3.json)，赞助者玩偶另见配置文档；旧 ID 不保证自动迁移。
 
 ## 许可证与致谢
