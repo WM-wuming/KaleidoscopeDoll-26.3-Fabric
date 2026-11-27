@@ -17,8 +17,17 @@
 
 ## 环境与构建
 
-- Minecraft Java Edition **26.3**、Java **25** 或更新版本、Fabric Loader **0.20.1** 或更新版本。
-- 需要 Fabric API 和 GeckoLib **5.5.7** 或更新版本。构建的 JAR 内嵌 Forge Config API Port，JEI 为可选配方查看器。
+### 前置依赖与下载
+
+请先安装 Minecraft Java Edition **26.3**、Java **25** 或更新版本，以及 Fabric：
+
+- [Fabric Loader 安装器](https://fabricmc.net/use/installer/)
+- [Fabric API（Modrinth）](https://modrinth.com/mod/fabric-api)
+- [GeckoLib（Modrinth）](https://modrinth.com/mod/geckolib)，需要 **5.5.7** 或更新版本
+
+本模组还必须安装 [Forge Config API Port（Modrinth）](https://modrinth.com/mod/forge-config-api-port)，它不会内嵌在本项目发布的 JAR 中。配方查看器为可选项：[Just Enough Items / JEI（Modrinth）](https://modrinth.com/mod/jei)。
+
+下载依赖时，请在对应页面选择 **Minecraft 26.3** 和 **Fabric** 的版本；客户端和服务端都应安装本模组及其必需依赖。
 
 使用 JDK 25 和项目自带的 Gradle Wrapper：
 
