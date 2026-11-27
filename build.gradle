@@ -89,6 +89,10 @@ tasks.withType(JavaCompile).configureEach {
     it.options.release.set(25)
 }
 
+tasks.named('jar', Jar) {
+    from('LICENSE')
+}
+
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(25)
     withSourcesJar()

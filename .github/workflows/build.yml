@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -41,3 +41,57 @@ jobs:
             !build/libs/*-sources.jar
           if-no-files-found: error
           retention-days: 7
+
+  release:
+    if: github.ref == 'refs/heads/26.3-fabric' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Download built mod JAR
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: kaleidoscopedoll-26.3-fabric
+          path: release-assets
+      - name: Publish version if it does not exist
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=$(sed -n 's/^mod_version=//p' gradle.properties)
+          if [[ ! "$version" =~ ^[0-9][0-9A-Za-z.+-]*$ ]]; then
+            echo "::error::Expected a single mod_version in gradle.properties."
+            exit 1
+          fi
+          tag="v$version"
+          git check-ref-format "refs/tags/$tag"
+
+          if gh release view "$tag" --json url --jq .url; then
+            echo "Release $tag already exists."
+            exit 0
+          fi
+
+          remote_tag=$(git ls-remote --tags --refs origin "refs/tags/$tag")
+          if [[ -n "$remote_tag" ]]; then
+            git fetch --no-tags origin "refs/tags/$tag"
+            if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$GITHUB_SHA" ]]; then
+              echo "::error::Tag $tag already points at a different commit."
+              exit 1
+            fi
+          fi
+
+          shopt -s nullglob
+          jars=(release-assets/*.jar)
+          if [[ ${#jars[@]} -ne 1 ]]; then
+            echo "::error::Expected exactly one mod JAR."
+            exit 1
+          fi
+          gh release create "$tag" "${jars[0]}" \
+            --target "$GITHUB_SHA" --title "Kaleidoscope Doll $version" --generate-notes
