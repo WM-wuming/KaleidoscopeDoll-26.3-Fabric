@@ -1,32 +1,22 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.compat.jei;
 
 import com.github.ysbbbbbb.kaleidoscopedoll.item.DollEntityItem;
-import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
+import mezz.jei.api.ingredients.subtypes.ISubtypeInterpreter;
 import mezz.jei.api.ingredients.subtypes.UidContext;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
-import net.minecraftforge.registries.ForgeRegistries;
 import org.apache.commons.lang3.StringUtils;
 
-public class EntityDollSubtype implements IIngredientSubtypeInterpreter<ItemStack> {
+public class EntityDollSubtype implements ISubtypeInterpreter<ItemStack> {
     @Override
-    public String apply(ItemStack itemStack, UidContext context) {
+    public Object getSubtypeData(ItemStack itemStack, UidContext context) {
         if (context == UidContext.Ingredient) {
-            return IIngredientSubtypeInterpreter.NONE;
+            return StringUtils.EMPTY;
         } else {
-            // 自定义玩偶
-            String dollId = DollEntityItem.getCustomDollIdFromItemStack(itemStack);
-            if (StringUtils.isNotBlank(dollId)) {
-                return dollId;
-            }
-
-            // 普通玩偶
             Block block = DollEntityItem.getBlockFromItemStack(itemStack);
-            ResourceLocation key = ForgeRegistries.BLOCKS.getKey(block);
-            if (key == null) {
-                return IIngredientSubtypeInterpreter.NONE;
-            }
+            Identifier key = BuiltInRegistries.BLOCK.getKey(block);
             return key.toString();
         }
     }

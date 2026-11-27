@@ -1,12 +1,30 @@
 {
-  "required": false,
+  "required": true,
+  "package": "com.github.ysbbbbbb.kaleidoscopedoll.mixin",
+  "compatibilityLevel": "JAVA_21",
   "minVersion": "0.8",
-  "package": "com.github.ysbbbbbb.kaleidoscopedoll.mixin.compat",
-  "compatibilityLevel": "JAVA_17",
-  "refmap": "kaleidoscope_cookery.refmap.json",
   "mixins": [
+    "AnvilMenuMixin",
+    "BlockStateBaseMixin",
+    "ItemCombinerMenuAccessor",
+    "EntityAccessor",
+    "LivingEntityMixin",
+    "AbstractHurtingProjectileMixin",
+    "AbstractWindChargeMixin",
+    "WindChargeItemMixin"
   ],
   "client": [
+    "client.ClientPackSourceMixin",
+    "client.MinecraftMixin",
+    "client.EntityRenderStateMixin",
+    "client.EntityRendererMixin",
+    "client.ClientPacketListenerMixin",
+    "client.CuboidItemModelWrapperMixin",
+    "client.LivingEntityRendererMixin",
+    "client.CustomHeadLayerMixin",
+    "client.SnowballParticleMixin",
+    "client.ThrownEggParticleMixin",
+    "client.WindChargeRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

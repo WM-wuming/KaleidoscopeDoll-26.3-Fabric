@@ -1,0 +1,17 @@
+{
+  "parent": "kaleidoscope_doll:block/doll_machine",
+  "elements": [
+    {
+      "from": [9, 12, 2],
+      "to": [13, 16, 6],
+      "faces": {
+        "north": {"uv": [13, 13.5, 15, 15.5], "texture": "#1"},
+        "east": {"uv": [13, 13.5, 15, 15.5], "texture": "#1"},
+        "south": {"uv": [13, 13.5, 15, 15.5], "texture": "#1"},
+        "west": {"uv": [13, 13.5, 15, 15.5], "texture": "#1"},
+        "up": {"uv": [13, 13.5, 15, 15.5], "texture": "#1"},
+        "down": {"uv": [13, 13.5, 15, 15.5], "texture": "#1"}
+      }
+    }
+  ]
+}

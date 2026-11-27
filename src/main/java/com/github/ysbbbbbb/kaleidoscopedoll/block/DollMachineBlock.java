@@ -4,11 +4,9 @@ import com.github.ysbbbbbb.kaleidoscopedoll.block.entity.DollMachineBlockEntity;
 import com.github.ysbbbbbb.kaleidoscopedoll.datagen.TagItem;
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModItems;
 import com.github.ysbbbbbb.kaleidoscopedoll.item.GiftBoxItem;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -20,18 +18,26 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
-import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.ScheduledTickAccess;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.LevelEvent;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.*;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.BlockHitResult;
@@ -39,37 +45,49 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-
 public class DollMachineBlock extends HorizontalDirectionalBlock implements EntityBlock {
     private static final VoxelShape SHAPE_UPPER = Block.box(1.0d, 0.0d, 1.0d, 15.0d, 8.0d, 15.0d);
     private static final VoxelShape SHAPE = Block.box(1.0d, 0.0d, 1.0d, 15.0d, 16.0d, 15.0d);
     private static final BooleanProperty LOTTERY_IN_PROGRESS = BooleanProperty.create("lottery_in_progress");
     public static final EnumProperty<DoubleBlockHalf> HALF = BlockStateProperties.DOUBLE_BLOCK_HALF;
 
-    public DollMachineBlock() {
-        super(BlockBehaviour.Properties.of().ignitedByLava()
+    public static Properties machineProperties() {
+        return Properties.of().ignitedByLava()
                 .instrument(NoteBlockInstrument.BASS)
                 .sound(SoundType.COPPER)
                 .strength(8f, 10f)
                 .lightLevel(s -> 2)
-                .pushReaction(PushReaction.BLOCK)
-                .noOcclusion());
+                .pushReaction(PushReaction.IMMOVEABLE)
+                .noOcclusion();
+    }
+
+    public DollMachineBlock(Properties properties) {
+        super(properties);
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(FACING, Direction.NORTH)
                 .setValue(LOTTERY_IN_PROGRESS, false)
                 .setValue(HALF, DoubleBlockHalf.LOWER));
     }
 
+    public static boolean isRunning(BlockState state) {
+        return state.getValue(LOTTERY_IN_PROGRESS);
+    }
+
     @Override
-    public BlockState updateShape(BlockState state, Direction facing, BlockState facingState, LevelAccessor level, BlockPos currentPos, BlockPos facingPos) {
+    protected RenderShape getRenderShape(BlockState state) {
+        return isRunning(state) ? RenderShape.INVISIBLE : RenderShape.MODEL;
+    }
+
+    @Override
+    protected BlockState updateShape(BlockState state, LevelReader level, ScheduledTickAccess ticks, BlockPos currentPos,
+                                     Direction facing, BlockPos facingPos, BlockState facingState, RandomSource random) {
         DoubleBlockHalf blockHalf = state.getValue(HALF);
         if (facing.getAxis() == Direction.Axis.Y && blockHalf == DoubleBlockHalf.LOWER == (facing == Direction.UP)) {
             boolean condition = facingState.is(this) && facingState.getValue(HALF) != blockHalf;
             return condition ? state.setValue(FACING, facingState.getValue(FACING)).setValue(LOTTERY_IN_PROGRESS, facingState.getValue(LOTTERY_IN_PROGRESS)) : Blocks.AIR.defaultBlockState();
         } else {
             boolean condition = blockHalf == DoubleBlockHalf.LOWER && facing == Direction.DOWN && !state.canSurvive(level, currentPos);
-            return condition ? Blocks.AIR.defaultBlockState() : super.updateShape(state, facing, facingState, level, currentPos, facingPos);
+            return condition ? Blocks.AIR.defaultBlockState() : super.updateShape(state, level, ticks, currentPos, facing, facingPos, facingState, random);
         }
     }
 
@@ -77,7 +95,7 @@ public class DollMachineBlock extends HorizontalDirectionalBlock implements Enti
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         BlockPos clickedPos = context.getClickedPos();
         Level level = context.getLevel();
-        if (clickedPos.getY() < level.getMaxBuildHeight() - 1 && level.getBlockState(clickedPos.above()).canBeReplaced(context)) {
+        if (clickedPos.getY() < level.getMaxY() - 1 && level.getBlockState(clickedPos.above()).canBeReplaced(context)) {
             return this.defaultBlockState().setValue(FACING, context.getHorizontalDirection()).setValue(HALF, DoubleBlockHalf.LOWER);
         } else {
             return null;
@@ -85,8 +103,8 @@ public class DollMachineBlock extends HorizontalDirectionalBlock implements Enti
     }
 
     @Override
-    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
-        if (!level.isClientSide && player.isCreative()) {
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide() && player.isCreative()) {
             DoubleBlockHalf value = state.getValue(HALF);
             if (value == DoubleBlockHalf.UPPER) {
                 BlockPos below = pos.below();
@@ -98,7 +116,7 @@ public class DollMachineBlock extends HorizontalDirectionalBlock implements Enti
                 }
             }
         }
-        super.playerWillDestroy(level, pos, state, player);
+        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Override
@@ -114,29 +132,29 @@ public class DollMachineBlock extends HorizontalDirectionalBlock implements Enti
     }
 
     @Override
-    public InteractionResult use(BlockState blockstate, Level world, BlockPos pos, Player entity, InteractionHand hand, BlockHitResult hit) {
-        ItemStack itemInHand = entity.getItemInHand(hand);
-        if (itemInHand.is(TagItem.MACHINE_TOKENS) && !blockstate.getValue(LOTTERY_IN_PROGRESS)) {
-            int x = pos.getX();
-            int y = blockstate.getValue(HALF) == DoubleBlockHalf.LOWER ? pos.getY() : pos.getY() - 1;
-            int z = pos.getZ();
-
-            // 触发 te
-            BlockPos tePos = new BlockPos(x, y, z);
-            if (world.getBlockEntity(tePos) instanceof DollMachineBlockEntity te) {
-                te.onTokensClicked(itemInHand, world);
-            }
-
-            world.setBlockAndUpdate(pos, blockstate.setValue(LOTTERY_IN_PROGRESS, true));
-            world.playSound(null, pos, SoundEvents.LARGE_AMETHYST_BUD_PLACE, SoundSource.BLOCKS, 4f, 2f);
+    protected InteractionResult useItemOn(ItemStack itemInHand, BlockState blockstate, Level world, BlockPos pos, Player entity, InteractionHand hand, BlockHitResult hit) {
+        if (itemInHand.is(TagItem.MACHINE_TOKENS) && !isRunning(blockstate)) {
+            BlockPos lowerPos = blockstate.getValue(HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
             if (world instanceof ServerLevel serverLevel) {
-                serverLevel.sendParticles(ParticleTypes.WAX_ON, x + 0.5, y + 1, z + 0.5, 8, 0.5, 0.5, 0.5, 0.2);
-                serverLevel.sendParticles(ParticleTypes.WAX_OFF, x + 0.5, y + 1, z + 0.5, 8, 0.5, 0.5, 0.5, 0.2);
-                world.scheduleTick(pos, blockstate.getBlock(), 60);
+                BlockState lowerState = world.getBlockState(lowerPos);
+                if (!lowerState.is(this) || isRunning(lowerState)
+                        || !(world.getBlockEntity(lowerPos) instanceof DollMachineBlockEntity machine)) {
+                    return InteractionResult.PASS;
+                }
+                machine.onTokensClicked(itemInHand, world);
+                world.setBlockAndUpdate(lowerPos, lowerState.setValue(LOTTERY_IN_PROGRESS, true));
+                machine.playLotteryAnimation();
+                world.playSound(null, pos, SoundEvents.LARGE_AMETHYST_BUD_PLACE, SoundSource.BLOCKS, 4f, 2f);
+                double x = lowerPos.getX() + 0.5;
+                double y = lowerPos.getY() + 1;
+                double z = lowerPos.getZ() + 0.5;
+                serverLevel.sendParticles(ParticleTypes.WAX_ON, x, y, z, 8, 0.5, 0.5, 0.5, 0.2);
+                serverLevel.sendParticles(ParticleTypes.WAX_OFF, x, y, z, 8, 0.5, 0.5, 0.5, 0.2);
+                world.scheduleTick(lowerPos, this, 60);
             }
             return InteractionResult.SUCCESS;
         }
-        return super.use(blockstate, world, pos, entity, hand, hit);
+        return super.useItemOn(itemInHand, blockstate, world, pos, entity, hand, hit);
     }
 
     @Override
@@ -151,7 +169,7 @@ public class DollMachineBlock extends HorizontalDirectionalBlock implements Enti
         int y = blockstate.getValue(HALF) == DoubleBlockHalf.LOWER ? pos.getY() : pos.getY() - 1;
         int z = pos.getZ();
 
-        world.sendParticles(ParticleTypes.HAPPY_VILLAGER.getType(), x + 0.5, y + 1.8, z + 0.5,
+        world.sendParticles(ParticleTypes.HAPPY_VILLAGER, x + 0.5, y + 1.8, z + 0.5,
                 10, 0.5, 0.5, 0.5, 0.5);
         world.playSound(null, x, y, z, SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.BLOCKS, 1f, 1f);
         world.setBlockAndUpdate(pos, blockstate.setValue(LOTTERY_IN_PROGRESS, false));
@@ -168,13 +186,14 @@ public class DollMachineBlock extends HorizontalDirectionalBlock implements Enti
             return;
         }
 
+        // 与 1.20 版本一致：抽奖机掉落预装玩偶的盲盒，盒子颜色对应抽奖等级
         Item item;
         if (tier == 0) {
-            item = ModItems.GREEN_DOLL_GIFT_BOX.get();
+            item = ModItems.GREEN_DOLL_GIFT_BOX;
         } else if (tier == 1) {
-            item = ModItems.YELLOW_DOLL_GIFT_BOX.get();
+            item = ModItems.YELLOW_DOLL_GIFT_BOX;
         } else {
-            item = ModItems.PURPLE_DOLL_GIFT_BOX.get();
+            item = ModItems.PURPLE_DOLL_GIFT_BOX;
         }
 
         ItemStack gift = new ItemStack(item);
@@ -196,11 +215,6 @@ public class DollMachineBlock extends HorizontalDirectionalBlock implements Enti
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING, LOTTERY_IN_PROGRESS, HALF);
-    }
-
-    @Override
-    public void appendHoverText(ItemStack pStack, @Nullable BlockGetter pLevel, List<Component> tooltip, TooltipFlag pFlag) {
-        tooltip.add(Component.translatable("tooltip.kaleidoscope_doll.doll_machine").withStyle(ChatFormatting.DARK_GRAY));
     }
 
     @Override

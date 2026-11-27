@@ -1,0 +1,16 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.kaleidoscope_doll.doll_machine",
+        "texture_width": 32,
+        "texture_height": 32
+      },
+      "bones": [
+        {"name": "root", "pivot": [0, 0, 0]},
+        {"name": "prize_clock", "parent": "root", "pivot": [0, 0, 0]}
+      ]
+    }
+  ]
+}

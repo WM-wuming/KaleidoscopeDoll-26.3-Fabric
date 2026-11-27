@@ -1,22 +1,30 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.block;
 
-import com.github.ysbbbbbb.kaleidoscopedoll.init.ModSounds;
+import com.github.ysbbbbbb.kaleidoscopedoll.animation.DollAnimations;
+import com.github.ysbbbbbb.kaleidoscopedoll.block.entity.DollBlockEntity;
+import com.github.ysbbbbbb.kaleidoscopedoll.init.DollSounds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.InteractionHand;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SimpleWaterloggedBlock;
 import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -32,7 +40,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("deprecation")
-public class DollBlock extends HorizontalDirectionalBlock implements SimpleWaterloggedBlock {
+public class DollBlock extends HorizontalDirectionalBlock implements SimpleWaterloggedBlock, EntityBlock {
     private static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
     private static final VoxelShape DOLL_SHAPE = Block.box(2.0d, 0.0d, 2.0d, 14.0d, 12.0d, 14.0d);
 
@@ -46,23 +54,27 @@ public class DollBlock extends HorizontalDirectionalBlock implements SimpleWater
     private static final float PITCH_VARIANCE = 0.5f;
     private static final float BASE_PITCH = 0.75f;
 
-    public DollBlock() {
-        super(BlockBehaviour.Properties.of()
+    public static BlockBehaviour.Properties dollProperties() {
+        return BlockBehaviour.Properties.of()
                 .instrument(NoteBlockInstrument.BASEDRUM)
                 .sound(SoundType.WOOL)
                 .strength(0f, 10f)
-                .noOcclusion());
+                .noOcclusion();
+    }
+
+    public DollBlock(BlockBehaviour.Properties properties) {
+        super(properties);
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.SOUTH)
                 .setValue(WATERLOGGED, false));
     }
 
     @Override
-    public BlockState updateShape(BlockState currentState, Direction direction, BlockState neighborState,
-                                  LevelAccessor level, BlockPos currentPos, BlockPos neighborPos) {
+    protected BlockState updateShape(BlockState currentState, LevelReader level, ScheduledTickAccess ticks, BlockPos currentPos,
+                                     Direction direction, BlockPos neighborPos, BlockState neighborState, RandomSource random) {
         if (currentState.getValue(WATERLOGGED)) {
-            level.scheduleTick(currentPos, Fluids.WATER, Fluids.WATER.getTickDelay(level));
+            ticks.scheduleTick(currentPos, Fluids.WATER, Fluids.WATER.getTickDelay(level));
         }
-        return super.updateShape(currentState, direction, neighborState, level, currentPos, neighborPos);
+        return super.updateShape(currentState, level, ticks, currentPos, direction, neighborPos, neighborState, random);
     }
 
     @Override
@@ -71,15 +83,30 @@ public class DollBlock extends HorizontalDirectionalBlock implements SimpleWater
     }
 
     @Override
-    public InteractionResult use(BlockState blockState, Level level, BlockPos blockPos, Player player,
-                                 InteractionHand hand, BlockHitResult hitResult) {
+    protected InteractionResult useWithoutItem(BlockState blockState, Level level, BlockPos blockPos, Player player,
+                                               BlockHitResult hitResult) {
         if (level instanceof ServerLevel serverLevel) {
-            // 播放粒子效果
             spawnNoteParticles(serverLevel, blockPos);
-            // 播放音效
             playDollSound(serverLevel, blockPos);
+            if (level.getBlockEntity(blockPos) instanceof DollBlockEntity doll) {
+                doll.triggerAnim(DollAnimations.SQUEEZE, DollAnimations.SQUEEZE);
+            }
         }
-        return InteractionResult.SUCCESS;
+        // CONSUME 不触发挥手动画，长按右键对准玩偶方块时手臂不会持续挥动
+        return InteractionResult.CONSUME;
+    }
+
+    /**
+     * 方块模型由 DollBlockRender 渲染（支持右键收缩动画）。
+     */
+    @Override
+    protected RenderShape getRenderShape(BlockState blockState) {
+        return RenderShape.INVISIBLE;
+    }
+
+    @Override
+    public @Nullable BlockEntity newBlockEntity(BlockPos blockPos, BlockState blockState) {
+        return new DollBlockEntity(blockPos, blockState);
     }
 
     /**
@@ -113,11 +140,12 @@ public class DollBlock extends HorizontalDirectionalBlock implements SimpleWater
     }
 
     /**
-     * 播放玩偶音效
+     * 播放玩偶音效（按 doll_sounds.json 映射，未映射的玩偶播放默认鸭子叫）
      */
     private void playDollSound(ServerLevel serverLevel, BlockPos blockPos) {
-        float pitch = BASE_PITCH + serverLevel.random.nextFloat() * PITCH_VARIANCE;
-        serverLevel.playSound(null, blockPos, ModSounds.DUCK_TOY.get(),
+        float pitch = BASE_PITCH + serverLevel.getRandom().nextFloat() * PITCH_VARIANCE;
+        SoundEvent dollSound = DollSounds.getDollSound(BuiltInRegistries.BLOCK.getKey(this).getPath());
+        serverLevel.playSound(null, blockPos, dollSound,
                 SoundSource.BLOCKS, BASE_VOLUME, pitch);
     }
 
@@ -140,4 +168,5 @@ public class DollBlock extends HorizontalDirectionalBlock implements SimpleWater
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING, WATERLOGGED);
     }
+
 }

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "condition": {
+        "type": "minecraft:survives_explosion"
+      },
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "condition": {
+            "type": "minecraft:match_block",
+            "blocks": "kaleidoscope_doll:doll_machine",
+            "state": {
+              "half": "lower"
+            }
+          },
+          "name": "kaleidoscope_doll:doll_machine"
+        }
+      ],
+      "rolls": 1
+    }
+  ]
+}

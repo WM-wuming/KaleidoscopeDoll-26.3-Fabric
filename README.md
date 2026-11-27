@@ -1,63 +1,35 @@
-# Kaleidoscope Doll 森罗物语：玩偶
+# 森罗物语：玩偶 · Minecraft 26.3 Fabric 移植版
 
-> A Minecraft mod that brings a vast collection of decorative dolls and interactive doll systems to enhance your world with charm and personality.
+这是 Kaleidoscope Doll（森罗物语：玩偶）面向 Minecraft Java Edition 26.3 的**非官方 Fabric 移植版**。[原版代码](https://github.com/KaleidoscopeMods/KaleidoscopeDoll/commit/62303aa58bbd5ee52498f3ad0fbf4a0c7d04c183)由 KaleidoscopeMods 维护，原作者为 ysbb 和 tartaric_acid；本仓库不代表上游官方发布。
 
-![Minecraft](https://img.shields.io/badge/Minecraft-Java%20Edition-brightgreen)
-![Forge](https://img.shields.io/badge/Forge%20|%20Neoforge%20|%20Fabric-1.20.1%20|%201.21.1-orange)
-![License](https://img.shields.io/badge/License-BSD%203%20Clause%20|%20All%20Rights%20Reserved-red)
-![CurseForge](https://img.shields.io/curseforge/dt/1233277?logo=curseforge&label=CurseForge)
-![Modrinth](https://img.shields.io/modrinth/dt/vQLjjxNs?logo=modrinth&label=Modrinth)
+## 移植出处
 
-## Introduction
+移植提交直接接在 [KaleidoscopeMods/KaleidoscopeDoll `1.20-forge` 的 `62303aa5` 提交](https://github.com/KaleidoscopeMods/KaleidoscopeDoll/commit/62303aa58bbd5ee52498f3ad0fbf4a0c7d04c183)之后，保留该提交及其上游 Git 历史。赞助者玩偶署名也来自该版本。
 
-Kaleidoscope Doll is a delightful Minecraft mod that introduces over 450+ unique decorative dolls to your world. From adorable collectibles to interactive decorations, this mod brings personality and charm to every corner of your Minecraft experience.
+## 本移植版新增与适配
 
-## Features
+- **26.3 Fabric 适配**：更新玩偶方块、实体、物品和抽奖机的渲染与动画，迁移至 26.3 的物品模型和网络接口。
+- **服务端自定义玩偶同步**：将新版 Java 自定义玩偶 ZIP 放入服务端 `config/kaleidoscope_doll/custom/`，重启或执行 `/kaleidoscope_doll reload`。开启服务器资源包接收的客户端进服后可直接同步模型、贴图和介绍，不必手动安装 ZIP 或配置下载地址。缓存按服务器隔离，离服后停用。每次最多同步 8 个 ZIP、合计 16 MiB。
+- **赞助者玩偶配置包与署名**：可用导出脚本整理已有赞助者资源、恢复悬停署名并导出新旧 ID 对照表。安装方式与迁移注意事项见[赞助者配置文档](docs/sponsored-doll-config.md)；赞助者配置 ZIP 不随仓库附送。
+- **模组电脑与功能玩偶**：电脑界面支持搜索和批量换取玩偶；功能玩偶可与末影珍珠、风弹或不死图腾合成。
 
-- 🎎 **Hundreds Unique Dolls** - Massive collection of decorative dolls with unique designs and themes
-- 🏠 **Placeable Decorations** - Place dolls as decorative blocks in your builds
-- 👑 **Wearable Dolls** - Equip dolls as stylish head accessories
-- 🎁 **Gift Box System** - Colorful gift boxes containing surprise dolls
-- 🤖 **Doll Entities** - Convert doll blocks into throwable entities
-- 🛠️ **Tweaks Tool** - Customize and modify doll size and rotation
-- 🎯 **Interactive Physics** - Dolls respond to gravity, water flow, and player interaction
-- 📦 **JEI/EMI Integration** - Full recipe viewer compatibility
-- ⚙️ **Extensive Configuration** - Customize doll behavior, physics, and visual effects
+自定义玩偶、模组电脑等玩法不全是本仓库原创；上面列出的是本移植的新增或适配内容。
 
-## Gameplay Features
+## 环境与构建
 
-### Doll Collection & Display
-- Collect hundreds of unique dolls with different themes and designs
-- Place dolls as decorative blocks in your builds
-- Create stunning display rooms and galleries
+- Minecraft Java Edition **26.3**、Java **25** 或更新版本、Fabric Loader **0.20.1** 或更新版本。
+- 需要 Fabric API 和 GeckoLib **5.5.7** 或更新版本。构建的 JAR 内嵌 Forge Config API Port，JEI 为可选配方查看器。
 
-### Interactive Systems
-- **Throwable Dolls**: Convert placed dolls into entities that can be thrown
-- **Phantom Spawning**: Some dolls can spawn on phantoms for unique encounters
-- **Mountable Entities**: The dolls can be placed directly on other entities
-- **Physics Effects**: Dolls respond to gravity, water currents, and impact forces
+使用 JDK 25 和项目自带的 Gradle Wrapper：
 
-## Configuration Options
+```sh
+./gradlew build
+```
 
-The mod includes extensive configuration options to customize your experience:
+Windows 使用 `.\gradlew.bat build`，产物位于 `build/libs/`。多人游戏请在服务端和客户端安装相匹配的模组版本。
 
-- **Doll Physics**: Enable/disable gravity, water effects, and collision
-- **Throwing Mechanics**: Control if dolls can be thrown and their physics
-- **Visual Effects**: Toggle particle effects and visual feedback
+部分玩偶 ID 与旧版不同，升级前请备份存档。普通玩偶的部分映射见 [26.3 ID 对照表](docs/doll-id-mapping-26.3.json)，赞助者玩偶另见配置文档；旧 ID 不保证自动迁移。
 
-# Gallery
-![img](https://cdn.modrinth.com/data/vQLjjxNs/images/ac32d1d70def7dbc77f27e749acc3b8da8c8d973.jpeg)
-![img](https://cdn.modrinth.com/data/vQLjjxNs/images/88545381154e36510b69bfc970dd5455c8846cca.jpeg)
-![img](https://cdn.modrinth.com/data/vQLjjxNs/images/d0d8420fa38941aa7666f24ad5948bb28d2ea402.jpeg)
+## 许可证与致谢
 
-## License
-This project's code is licensed under the **BSD 3 Clause** license.    
-This project's assets is released under **All Rights Reserved** license. 
-
-## Feedback and Support
-
-If you encounter issues or have suggestions for improvements, please reach out through appropriate channels while respecting the original author's work.
-
----
-
-*Transform your Minecraft world into a charming doll collection showcase with Kaleidoscope Doll!*
+代码沿用原项目的 [BSD 3-Clause 许可证](LICENSE)。模型、贴图及其他美术资源不适用代码许可证，仍为 **All Rights Reserved**，相关权利归原作者及权利人。仓库上传许可不构成对第三方的再分发授权。

@@ -6,49 +6,60 @@ import com.github.ysbbbbbb.kaleidoscopedoll.config.GeneralConfig;
 import com.github.ysbbbbbb.kaleidoscopedoll.entity.DollEntity;
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModEntities;
 import com.google.common.collect.Lists;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.TickTask;
+import com.mojang.serialization.Codec;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
+import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.monster.Phantom;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.List;
 
-@Mod.EventBusSubscriber(modid = KaleidoscopeDoll.MOD_ID)
 public class PhantomSpawnEvent {
     private static List<DollBlock> DOLL_BLOCKS = null;
 
-    @SubscribeEvent
-    public static void onEntitySpawn(EntityJoinLevelEvent event) {
-        if (!(event.getEntity() instanceof Phantom phantom)) {
-            return;
-        }
-        if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
-            return;
-        }
-        if (!GeneralConfig.ENABLE_PHANTOM_DOLL_SPAWN.get()) {
-            return;
-        }
-        if (phantom.getRandom().nextDouble() > GeneralConfig.PHANTOM_DOLL_SPAWN_CHANCE.get()) {
-            return;
-        }
-        // 延迟 5 tick 执行，确保幻翼完全生成
-        serverLevel.getServer().tell(new TickTask(5, () -> attachRandomDollToPhantom(phantom, serverLevel)));
+    /**
+     * 幻翼是否已经掷过玩偶概率的持久化标记：
+     * tickCount 不持久化，无法区分新生成和存档重载的幻翼，
+     * 用附件保证每只幻翼一生只掷一次，存档重载后不会重复触发
+     */
+    public static final AttachmentType<Boolean> ROLLED_ATTACHMENT =
+            AttachmentRegistry.createPersistent(
+                    Identifier.fromNamespaceAndPath(KaleidoscopeDoll.MOD_ID, "phantom_doll_rolled"),
+                    Codec.BOOL);
+
+    public static void register() {
+        // 注册实体加载事件
+        ServerEntityEvents.ENTITY_LOAD.register((entity, serverLevel) -> {
+            if (!(entity instanceof Phantom phantom)) {
+                return;
+            }
+            if (!GeneralConfig.ENABLE_PHANTOM_DOLL_SPAWN.get()) {
+                return;
+            }
+            // 存档重载的幻翼已带标记，不重复掷概率
+            if (phantom.hasAttached(ROLLED_ATTACHMENT)) {
+                return;
+            }
+            phantom.setAttached(ROLLED_ATTACHMENT, true);
+            if (phantom.getRandom().nextDouble() > GeneralConfig.PHANTOM_DOLL_SPAWN_CHANCE.get()) {
+                return;
+            }
+            attachRandomDollToPhantom(phantom, serverLevel);
+        });
     }
 
     private static void attachRandomDollToPhantom(Phantom phantom, ServerLevel level) {
         // 随机选择一个玩偶外观
-        DollBlock randomBlock = getRandomDollBlock(level.random);
+        DollBlock randomBlock = getRandomDollBlock(level.getRandom());
         if (randomBlock == null) {
             return;
         }
 
         // 创建玩偶实体
-        DollEntity doll = new DollEntity(ModEntities.DOLL.get(), level);
+        DollEntity doll = new DollEntity(ModEntities.DOLL, level);
         doll.setDisplayBlockState(randomBlock.defaultBlockState());
         doll.setPos(phantom.getX(), phantom.getY() + 0.35, phantom.getZ());
         doll.setYRot(phantom.getYRot());
@@ -62,17 +73,6 @@ public class PhantomSpawnEvent {
     private static DollBlock getRandomDollBlock(RandomSource random) {
         if (DOLL_BLOCKS == null) {
             DOLL_BLOCKS = Lists.newArrayList(ModRegisterEvent.DOLL_BLOCKS.values());
-            // 检查是否禁用了赞助玩偶
-            if (!GeneralConfig.ENABLE_SPONSORED_DOLL.get()) {
-                DOLL_BLOCKS.removeIf(block -> {
-                    ResourceLocation id = ForgeRegistries.BLOCKS.getKey(block);
-                    if (id == null) {
-                        return false;
-                    }
-                    return ModRegisterEvent.SPECIAL_TOOLTIPS.containsKey(id)
-                           && !ModRegisterEvent.AUTHOR_DOLLS.contains(id);
-                });
-            }
         }
         if (DOLL_BLOCKS.isEmpty()) {
             return null;

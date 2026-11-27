@@ -1,158 +1,95 @@
 plugins {
     id 'eclipse'
     id 'idea'
-    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
-    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
-    id 'org.spongepowered.mixin' version '0.7.+'
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
 }
 
-group = mod_group_id
-version = mod_version
-archivesBaseName = "kaleidoscopedoll"
+version = project.mod_version
+group = project.maven_group
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+base {
+    archivesName = "kaleidoscopedoll-${minecraft_version}-fabric"
+}
 
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
-    copyIdeResources = true
-    runs {
-        configureEach {
-            jvmArgs = [
-                    "-XX:+IgnoreUnrecognizedVMOptions",
-                    "-XX:+AllowEnhancedClassRedefinition"
-            ]
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
-            }
-        }
-        client {
-            property 'forge.enabledGameTestNamespaces', mod_id
-            workingDirectory project.file('run/client')
-        }
-        client2 {
-            parent minecraft.runs.client
-            workingDirectory project.file('run/client_2')
-            args '--username', 'tartaric_acid'
-        }
-        server {
-            property 'forge.enabledGameTestNamespaces', mod_id
-            workingDirectory project.file('run/server')
-            args '--nogui'
-        }
-        data {
-            workingDirectory project.file('run/data')
-            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        "kaleidoscopedoll" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
         }
     }
 }
 
-sourceSets.main.resources {
-    srcDir 'src/generated/resources'
-    exclude '.cache/**'
-}
-
-mixin {
-    add sourceSets.main, "kaleidoscope_doll.refmap.json"
-    config "kaleidoscope_doll.mixins.json"
+fabricApi {
+    configureDataGeneration {
+        client = true
+    }
 }
 
 repositories {
-    // 优先本地 libs 文件夹
-    flatDir {
-        dir 'libs'
-    }
     maven {
-        url "https://cursemaven.com"
+        name = "GeckoLib"
+        url = "https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/"
         content {
-            includeGroup "curse.maven"
+            includeGroup("com.geckolib")
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
         }
     }
     maven {
-        // location of the maven that hosts JEI files since January 2023
         name = "Jared's maven"
         url = "https://maven.blamejared.com/"
     }
     maven {
-        // location of a maven mirror for JEI files, as a fallback
         name = "ModMaven"
         url = "https://modmaven.dev"
-    }
-    maven {
-        name = "Modrinth"
-        url = "https://api.modrinth.com/maven"
-    }
-    maven {
-        name = "Curios"
-        url = uri("https://maven.theillusivec4.top/")
-    }
-    maven {
-        url = "https://maven.createmod.net"
-        content {
-            includeGroup "net.createmod.ponder"
-            includeGroup "dev.engine-room.flywheel"
-        }
     }
 }
 
 dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "com.geckolib:geckolib-fabric-${project.minecraft_version}:${project.geckolib_version}"
+    include(implementation("maven.modrinth:forge-config-api-port:${project.forge_config_api_port_version}"))
+    implementation "mezz.jei:jei-${project.minecraft_version}-fabric:${project.jei_version}"
 
-    compileOnly fg.deobf("mezz.jei:jei-1.20.1-common-api:${jei_version}")
-    compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge-api:${jei_version}")
-    runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:${jei_version}")
-
-    compileOnly fg.deobf("maven.modrinth:emi:1.1.22+1.20.1+forge")
-
-    implementation fg.deobf("maven.modrinth:jade:11.13.1+forge")
-
-    runtimeOnly fg.deobf('curse.maven:touhou-little-maid-355044:6613821-sources-6613853')
-    runtimeOnly fg.deobf("top.theillusivec4.curios:curios-forge:5.9.1+1.20.1")
-    compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:5.9.1+1.20.1:api")
-
-    // compileOnly fg.deobf("net.createmod.ponder:Ponder-Forge-1.20.1:1.0.80")
-    // implementation fg.deobf("maven.modrinth:create:1.20.1-6.0.6")
-    runtimeOnly fg.deobf("maven.modrinth:embeddium:0.3.31+mc1.20.1")
-
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    compileOnly "com.electronwill.night-config:core:${project.night_config_version}"
+    localRuntime "com.electronwill.night-config:core:${project.night_config_version}"
+    localRuntime "com.electronwill.night-config:toml:${project.night_config_version}"
 }
 
-tasks.named('processResources', ProcessResources).configure {
-    var replaceProperties = [
-            minecraft_version      : minecraft_version,
-            minecraft_version_range: minecraft_version_range,
-            forge_version          : forge_version,
-            forge_version_range    : forge_version_range,
-            loader_version_range   : loader_version_range,
-            mod_id                 : mod_id,
-            mod_name               : mod_name,
-            mod_license            : mod_license,
-            mod_version            : mod_version,
-            mod_authors            : mod_authors,
-            mod_description        : mod_description
-    ]
+processResources {
+    inputs.property "version", project.version
+    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "loader_version", project.loader_version
+    inputs.property "geckolib_version", project.geckolib_version
+    filteringCharset "UTF-8"
 
-    inputs.properties replaceProperties
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties + [project: project]
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version,
+                "minecraft_version": project.minecraft_version,
+                "loader_version": project.loader_version,
+                "geckolib_version": project.geckolib_version
     }
-}
-
-tasks.named('jar', Jar).configure {
-    manifest {
-        attributes([
-                "Implementation-Title"  : project.name,
-                "Implementation-Version": "${version}"
-        ])
-    }
-    finalizedBy 'reobfJar'
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
+    it.options.encoding = "UTF-8"
+    it.options.release.set(25)
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    withSourcesJar()
 }

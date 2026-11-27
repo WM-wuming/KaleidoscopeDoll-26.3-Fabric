@@ -4,27 +4,24 @@ import com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll;
 import com.github.ysbbbbbb.kaleidoscopedoll.event.ModRegisterEvent;
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModItems;
 import com.google.common.collect.Lists;
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricTagsProvider;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.data.PackOutput;
-import net.minecraft.data.tags.ItemTagsProvider;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.Block;
-import net.minecraftforge.common.data.ExistingFileHelper;
-import net.minecraftforge.registries.ForgeRegistries;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static com.github.ysbbbbbb.kaleidoscopedoll.event.ModRegisterEvent.SPECIAL_TOOLTIPS;
 
-public class TagItem extends ItemTagsProvider {
+public class TagItem extends FabricTagsProvider<Item> {
     /**
      * 原版生物玩偶
      */
@@ -37,10 +34,6 @@ public class TagItem extends ItemTagsProvider {
      * 作者玩偶，注意所有的作者玩偶也是玩家玩偶
      */
     public static final TagKey<Item> AUTHOR_DOLLS = itemTagKey("author_dolls");
-    /**
-     * 赞助玩偶
-     */
-    public static final TagKey<Item> SPONSORED_DOLLS = itemTagKey("sponsored_dolls");
     /**
      * 自定义玩偶
      */
@@ -89,83 +82,82 @@ public class TagItem extends ItemTagsProvider {
      */
     public static final TagKey<Item> COMPUTER_TOKENS = itemTagKey("computer_tokens");
 
-    public TagItem(PackOutput output, CompletableFuture<HolderLookup.Provider> lookupProvider,
-                   CompletableFuture<TagLookup<Block>> blockTags, String modId,
-                   @Nullable ExistingFileHelper existingFileHelper) {
-        super(output, lookupProvider, blockTags, modId, existingFileHelper);
+    public TagItem(FabricPackOutput output, CompletableFuture<HolderLookup.Provider> lookupProvider) {
+        super(output, Registries.ITEM, lookupProvider);
     }
 
     private static TagKey<Item> itemTagKey(String key) {
-        return TagKey.create(Registries.ITEM, new ResourceLocation(KaleidoscopeDoll.MOD_ID, key));
+        return TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(KaleidoscopeDoll.MOD_ID, key));
     }
 
     private static ResourceKey<Item> dollItem(String key) {
-        return ResourceKey.create(Registries.ITEM, new ResourceLocation(KaleidoscopeDoll.MOD_ID, key));
+        return ResourceKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(KaleidoscopeDoll.MOD_ID, key));
     }
 
     @Override
-    @SuppressWarnings("all")
     protected void addTags(HolderLookup.Provider provider) {
-        this.tag(VANILLA_DOLLS).add(ModRegisterEvent.DOLL_ITEMS.stream()
-                .filter(item -> !SPECIAL_TOOLTIPS.containsKey(ForgeRegistries.ITEMS.getKey(item)))
-                .toArray(Item[]::new));
+        ModRegisterEvent.DOLL_ITEMS.forEach(item -> {
+            Identifier key = BuiltInRegistries.ITEM.getKey(item);
+            ResourceKey<Item> itemKey = BuiltInRegistries.ITEM.getResourceKey(item).orElseThrow();
+            if (!SPECIAL_TOOLTIPS.containsKey(key)) {
+                this.builder(VANILLA_DOLLS).add(itemKey);
+            } else {
+                this.builder(PLAYER_DOLLS).add(itemKey);
+                if (ModRegisterEvent.AUTHOR_DOLLS.contains(key)) {
+                    this.builder(AUTHOR_DOLLS).add(itemKey);
+                }
+            }
+            this.builder(ALL_DOLLS).add(itemKey);
+        });
 
-        this.tag(PLAYER_DOLLS).add(ModRegisterEvent.DOLL_ITEMS.stream()
-                .filter(item -> SPECIAL_TOOLTIPS.containsKey(ForgeRegistries.ITEMS.getKey(item)))
-                .toArray(Item[]::new));
+        this.builder(CUSTOM_DOLLS).add(BuiltInRegistries.ITEM.getResourceKey(ModItems.CUSTOM_DOLL).orElseThrow());
+        this.builder(ALL_DOLLS).add(BuiltInRegistries.ITEM.getResourceKey(ModItems.CUSTOM_DOLL).orElseThrow());
 
-        this.tag(AUTHOR_DOLLS).add(ModRegisterEvent.DOLL_ITEMS.stream()
-                .filter(item -> ModRegisterEvent.AUTHOR_DOLLS.contains(ForgeRegistries.ITEMS.getKey(item)))
-                .toArray(Item[]::new));
+        this.builder(BLOCK_DOLLS_TO_ENTITY_ITEM)
+                .add(BuiltInRegistries.ITEM.getResourceKey(Items.SLIME_BALL).orElseThrow())
+                .add(BuiltInRegistries.ITEM.getResourceKey(Items.CLAY_BALL).orElseThrow());
 
-        this.tag(SPONSORED_DOLLS).add(ModRegisterEvent.DOLL_ITEMS.stream()
-                .filter(item -> SPECIAL_TOOLTIPS.containsKey(ForgeRegistries.ITEMS.getKey(item))
-                                && !ModRegisterEvent.AUTHOR_DOLLS.contains(ForgeRegistries.ITEMS.getKey(item)))
-                .toArray(Item[]::new));
-
-        this.tag(CUSTOM_DOLLS).add(ModItems.CUSTOM_DOLL.get());
-
-        this.tag(ALL_DOLLS).add(ModRegisterEvent.DOLL_ITEMS.toArray(Item[]::new)).add(ModItems.CUSTOM_DOLL.get());
-
-        this.tag(BLOCK_DOLLS_TO_ENTITY_ITEM).add(Items.SLIME_BALL, Items.CLAY_BALL);
-
-        this.tag(TIER_0_MACHINE_TOKENS).add(Items.IRON_INGOT);
-        this.tag(TIER_1_MACHINE_TOKENS).add(Items.GOLD_INGOT);
-        this.tag(TIER_2_MACHINE_TOKENS).add(Items.DIAMOND);
-        this.tag(MACHINE_TOKENS).addTag(TIER_0_MACHINE_TOKENS)
+        this.builder(TIER_0_MACHINE_TOKENS).add(BuiltInRegistries.ITEM.getResourceKey(Items.IRON_INGOT).orElseThrow());
+        this.builder(TIER_1_MACHINE_TOKENS).add(BuiltInRegistries.ITEM.getResourceKey(Items.GOLD_INGOT).orElseThrow());
+        this.builder(TIER_2_MACHINE_TOKENS).add(BuiltInRegistries.ITEM.getResourceKey(Items.DIAMOND).orElseThrow());
+        this.builder(MACHINE_TOKENS).addTag(TIER_0_MACHINE_TOKENS)
                 .addTag(TIER_1_MACHINE_TOKENS)
                 .addTag(TIER_2_MACHINE_TOKENS);
 
         List<ResourceKey<Item>> tier1Dolls = Lists.newArrayList(
-                dollItem("doll_2"),
-                dollItem("doll_10"),
-                dollItem("doll_12"),
-                dollItem("doll_15"),
-                dollItem("doll_16"),
-                dollItem("doll_17"),
-                dollItem("doll_34"),
-                dollItem("doll_35"),
+                dollItem("doll_62"),
+                dollItem("doll_64"),
+                dollItem("doll_65"),
                 dollItem("doll_66"),
-                dollItem("doll_326"),
-                dollItem("doll_704")
+                dollItem("doll_69"),
+                dollItem("doll_70"),
+                dollItem("doll_71"),
+                dollItem("doll_72"),
+                dollItem("doll_73"),
+                dollItem("doll_78"),
+                dollItem("doll_74")
         );
-        this.tag(TIER_1_DOLLS).add(tier1Dolls.toArray(new ResourceKey[0]));
+        tier1Dolls.forEach(this.builder(TIER_1_DOLLS)::add);
 
         List<ResourceKey<Item>> tier2Dolls = Lists.newArrayList(
-                dollItem("doll_3"),
-                dollItem("doll_11"),
-                dollItem("doll_21"),
-                dollItem("doll_327")
+                dollItem("doll_75"),
+                dollItem("doll_76"),
+                dollItem("doll_77"),
+                dollItem("doll_79")
         );
-        this.tag(TIER_2_DOLLS).add(tier2Dolls.toArray(new ResourceKey[0]));
+        tier2Dolls.forEach(this.builder(TIER_2_DOLLS)::add);
 
         // 0 级玩偶是除了 1 级和 2 级玩偶之外的所有玩偶
-        this.tag(TIER_0_DOLLS).add(ModRegisterEvent.DOLL_ITEMS.stream()
-                .filter(item -> !SPECIAL_TOOLTIPS.containsKey(ForgeRegistries.ITEMS.getKey(item)))
-                .filter(item -> ForgeRegistries.ITEMS.getResourceKey(item)
-                        .map(k -> !tier1Dolls.contains(k) && !tier2Dolls.contains(k)).orElse(false))
-                .toArray(Item[]::new));
+        ModRegisterEvent.DOLL_ITEMS.stream()
+                .filter(item -> !SPECIAL_TOOLTIPS.containsKey(BuiltInRegistries.ITEM.getKey(item)))
+                .forEach(item -> BuiltInRegistries.ITEM.getResourceKey(item).ifPresent(k -> {
+                    if (!tier1Dolls.contains(k) && !tier2Dolls.contains(k)) {
+                        this.builder(TIER_0_DOLLS).add(k);
+                    }
+                }));
 
-        this.tag(COMPUTER_TOKENS).addTag(ItemTags.WOOL);
+        for (DyeColor color : DyeColor.values()) {
+            this.builder(COMPUTER_TOKENS).add(BuiltInRegistries.ITEM.getResourceKey(Items.WOOL.pick(color)).orElseThrow());
+        }
     }
 }

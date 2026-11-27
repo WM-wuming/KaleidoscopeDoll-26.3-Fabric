@@ -1,81 +1,89 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.datagen;
 
-import com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll;
 import com.github.ysbbbbbb.kaleidoscopedoll.event.ModRegisterEvent;
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModItems;
-import net.minecraft.advancements.Advancement;
-import net.minecraft.advancements.AdvancementRewards;
-import net.minecraft.advancements.FrameType;
-import net.minecraft.advancements.RequirementsStrategy;
-import net.minecraft.advancements.critereon.InventoryChangeTrigger;
-import net.minecraft.advancements.critereon.PlayerTrigger;
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricAdvancementProvider;
+import net.minecraft.advancements.*;
+import net.minecraft.advancements.triggers.InventoryChangeTrigger;
+import net.minecraft.advancements.triggers.PlayerTrigger;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.ItemLike;
-import net.minecraftforge.common.data.ExistingFileHelper;
-import net.minecraftforge.common.data.ForgeAdvancementProvider;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStackTemplate;
+import net.minecraft.core.ClientAsset;
+import java.util.Optional;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import static com.github.ysbbbbbb.kaleidoscopedoll.event.ModRegisterEvent.SPECIAL_TOOLTIPS;
 
-public class AdvancementGenerator implements ForgeAdvancementProvider.AdvancementGenerator {
+public class AdvancementGenerator extends FabricAdvancementProvider {
+    protected AdvancementGenerator(FabricPackOutput output, CompletableFuture<HolderLookup.Provider> registryLookup) {
+        super(output, registryLookup);
+    }
+
     @Override
-    public void generate(HolderLookup.Provider registries, Consumer<Advancement> saver, ExistingFileHelper existingFileHelper) {
-        Advancement root = make(ForgeRegistries.ITEMS.getValue(id("doll_52")), "root")
-                .requirements(RequirementsStrategy.OR)
+    public void generateAdvancement(HolderLookup.Provider registryLookup, Consumer<AdvancementHolder> saver) {
+        AdvancementHolder root = make(BuiltInRegistries.ITEM.getValue(id("doll_40")), "root", true)
+                .requirements(AdvancementRequirements.Strategy.OR)
                 .addCriterion("tick", PlayerTrigger.TriggerInstance.tick())
-                .save(saver, id("doll/root"), existingFileHelper);
+                .build(id("doll/root"));
+        saver.accept(root);
 
-        Advancement dollMachine = make(ModItems.DOLL_MACHINE.get(), "doll_machine").parent(root)
-                .addCriterion("doll_machine", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.DOLL_MACHINE.get()))
-                .save(saver, id("doll/doll_machine"), existingFileHelper);
+        AdvancementHolder dollMachine = make(ModItems.DOLL_MACHINE, "doll_machine").parent(root)
+                .addCriterion("doll_machine", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.DOLL_MACHINE))
+                .build(id("doll/doll_machine"));
+        saver.accept(dollMachine);
 
-        make(ModItems.PURPLE_DOLL_GIFT_BOX.get(), "purple_doll_gift_box").parent(dollMachine)
-                .addCriterion("purple_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.PURPLE_DOLL_GIFT_BOX.get()))
-                .save(saver, id("doll/purple_doll_gift_box"), existingFileHelper);
-        make(ModItems.GREEN_DOLL_GIFT_BOX.get(), "green_doll_gift_box").parent(dollMachine)
-                .addCriterion("green_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.GREEN_DOLL_GIFT_BOX.get()))
-                .save(saver, id("doll/green_doll_gift_box"), existingFileHelper);
-        Advancement yellowGiftBox = make(ModItems.YELLOW_DOLL_GIFT_BOX.get(), "yellow_doll_gift_box").parent(dollMachine)
-                .addCriterion("yellow_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.YELLOW_DOLL_GIFT_BOX.get()))
-                .save(saver, id("doll/yellow_doll_gift_box"), existingFileHelper);
+        saver.accept(make(ModItems.PURPLE_DOLL_GIFT_BOX, "purple_doll_gift_box").parent(dollMachine)
+                .addCriterion("purple_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.PURPLE_DOLL_GIFT_BOX))
+                .build(id("doll/purple_doll_gift_box")));
+        saver.accept(make(ModItems.GREEN_DOLL_GIFT_BOX, "green_doll_gift_box").parent(dollMachine)
+                .addCriterion("green_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.GREEN_DOLL_GIFT_BOX))
+                .build(id("doll/green_doll_gift_box")));
+        AdvancementHolder yellowGiftBox = make(ModItems.YELLOW_DOLL_GIFT_BOX, "yellow_doll_gift_box").parent(dollMachine)
+                .addCriterion("yellow_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.YELLOW_DOLL_GIFT_BOX))
+                .build(id("doll/yellow_doll_gift_box"));
+        saver.accept(yellowGiftBox);
 
-        make(ForgeRegistries.ITEMS.getValue(id("doll_0")), "credits").parent(root)
-                .addCriterion("credits", PlayerTrigger.TriggerInstance.tick())
-                .save(saver, id("doll/credits"), existingFileHelper);
-
-        Advancement.Builder fullCollection = makeChallenge(ForgeRegistries.ITEMS.getValue(id("doll_5")), "full_collection").parent(yellowGiftBox)
-                .requirements(RequirementsStrategy.AND);
+        Advancement.Builder fullCollection = makeChallenge(BuiltInRegistries.ITEM.getValue(id("doll_3")), "full_collection").parent(yellowGiftBox)
+                .requirements(AdvancementRequirements.Strategy.AND);
         ModRegisterEvent.DOLL_ITEMS.stream()
-                .filter(item -> !SPECIAL_TOOLTIPS.containsKey(ForgeRegistries.ITEMS.getKey(item)))
-                .forEach(item -> fullCollection.addCriterion(ForgeRegistries.ITEMS.getKey(item).getPath(), InventoryChangeTrigger.TriggerInstance.hasItems(item)));
-        fullCollection.rewards(AdvancementRewards.Builder.experience(100))
-                .save(saver, id("doll/full_collection"), existingFileHelper);
+                .filter(item -> !SPECIAL_TOOLTIPS.containsKey(BuiltInRegistries.ITEM.getKey(item)))
+                .forEach(item -> fullCollection.addCriterion(BuiltInRegistries.ITEM.getKey(item).getPath(), InventoryChangeTrigger.TriggerInstance.hasItems(item)));
+        saver.accept(fullCollection.rewards(AdvancementRewards.Builder.experience(100))
+                .build(id("doll/full_collection")));
     }
 
-    private static Advancement.Builder make(ItemLike item, String key) {
+    private static final ClientAsset.ResourceTexture BACKGROUND = new ClientAsset.ResourceTexture(
+            Identifier.fromNamespaceAndPath(com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll.MOD_ID, "textures/advancement/background.png"));
+
+    private static Advancement.Builder make(Item item, String key) {
+        return make(item, key, false);
+    }
+
+    private static Advancement.Builder make(Item item, String key, boolean root) {
         MutableComponent title = Component.translatable(String.format("advancements.kaleidoscope_doll.doll.%s.title", key));
         MutableComponent desc = Component.translatable(String.format("advancements.kaleidoscope_doll.doll.%s.description", key));
 
-        return Advancement.Builder.advancement().display(item, title, desc,
-                new ResourceLocation(KaleidoscopeDoll.MOD_ID, "textures/advancement/background.png"),
-                FrameType.TASK, false, false, false);
+        return Advancement.Builder.advancement().display(new DisplayInfo(new ItemStackTemplate(item), title, desc,
+                root ? Optional.of(BACKGROUND) : Optional.empty(), AdvancementType.TASK, false, false, false));
     }
 
-    private static Advancement.Builder makeChallenge(ItemLike item, String key) {
+    private static Advancement.Builder makeChallenge(Item item, String key) {
         MutableComponent title = Component.translatable(String.format("advancements.kaleidoscope_doll.doll.%s.title", key));
         MutableComponent desc = Component.translatable(String.format("advancements.kaleidoscope_doll.doll.%s.description", key));
 
-        return Advancement.Builder.advancement().display(item, title, desc,
-                new ResourceLocation(KaleidoscopeDoll.MOD_ID, "textures/advancement/background.png"),
-                FrameType.CHALLENGE, true, true, false);
+        return Advancement.Builder.advancement().display(new DisplayInfo(new ItemStackTemplate(item), title, desc,
+                Optional.empty(), AdvancementType.CHALLENGE, true, true, false));
     }
 
-    private static ResourceLocation id(String id) {
-        return new ResourceLocation(KaleidoscopeDoll.MOD_ID, id);
+    private static Identifier id(String id) {
+        return Identifier.fromNamespaceAndPath(com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll.MOD_ID, id);
     }
 }

@@ -1,57 +1,64 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.entity;
 
-import com.github.ysbbbbbb.kaleidoscopedoll.client.gui.TweaksToolScreen;
+import com.geckolib.animatable.GeoEntity;
+import com.geckolib.animatable.instance.AnimatableInstanceCache;
+import com.geckolib.animatable.manager.AnimatableManager;
+import com.geckolib.util.GeckoLibUtil;
+import com.github.ysbbbbbb.kaleidoscopedoll.animation.DollAnimations;
+import com.github.ysbbbbbb.kaleidoscopedoll.client.ClientHooks;
 import com.github.ysbbbbbb.kaleidoscopedoll.config.GeneralConfig;
+import com.github.ysbbbbbb.kaleidoscopedoll.init.DollSounds;
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModEntities;
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModItems;
-import com.github.ysbbbbbb.kaleidoscopedoll.init.ModSounds;
 import com.github.ysbbbbbb.kaleidoscopedoll.item.DollEntityItem;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.core.registries.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.InterpolationHandler;
+import net.minecraft.world.entity.LinearInterpolationHandler;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.monster.Phantom;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gamerules.GameRules;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fluids.FluidType;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkHooks;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
-import javax.annotation.Nullable;
-
-public class DollEntity extends Entity {
+public class DollEntity extends Entity implements GeoEntity {
     private static final EntityDataAccessor<BlockState> DATA_BLOCK_STATE = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.BLOCK_STATE);
-    private static final EntityDataAccessor<Vector3f> DATA_SCALE = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
-    private static final EntityDataAccessor<Vector3f> DATA_TRANSLATION = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Vector3fc> DATA_SCALE = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Vector3fc> DATA_TRANSLATION = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
 
     private static final EntityDataAccessor<ItemStack> DATA_HOLD_ITEM = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.ITEM_STACK);
-    private static final EntityDataAccessor<Vector3f> DATA_ITEM_SCALE = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
-    private static final EntityDataAccessor<Vector3f> DATA_ITEM_TRANSLATION = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
-    private static final EntityDataAccessor<Vector3f> DATA_ITEM_ROTATION = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Vector3fc> DATA_ITEM_SCALE = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Vector3fc> DATA_ITEM_TRANSLATION = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
+    private static final EntityDataAccessor<Vector3fc> DATA_ITEM_ROTATION = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
 
     private static final EntityDataAccessor<String> CUSTOM_DOLL_ID = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.STRING);
 
@@ -68,8 +75,9 @@ public class DollEntity extends Entity {
     private static final String TAG_ITEM_TRANSLATION = "item_translation";
     private static final String TAG_ITEM_ROTATION = "item_rotation";
 
+    private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
     private boolean inThrowing = false;
-    private long bounceTime = 0;
+    private long nextHitEffectTime;
     /**
      * 存取物品 Cooldown
      */
@@ -95,15 +103,24 @@ public class DollEntity extends Entity {
     }
 
     public DollEntity(Level level, double x, double y, double z, float yaw) {
-        this(ModEntities.DOLL.get(), level);
+        this(ModEntities.DOLL, level);
         this.setPos(x, y, z);
         this.setYRot(yaw);
+    }
+
+    @Override
+    protected InterpolationHandler createInterpolationHandler() {
+        return LinearInterpolationHandler.create(this);
     }
 
     @Override
     public void tick() {
         // 调用父类的基础 tick 逻辑
         super.tick();
+
+        if (!this.canSimulateMovement()) {
+            return;
+        }
 
         // 先判断存活
         // 没有骑在幻翼上时才会计数
@@ -125,7 +142,7 @@ public class DollEntity extends Entity {
             this.inThrowing = false;
         } else if (this.getVehicle() == null && this.getPassengers().isEmpty() && this.getDeltaMovement().length() > 0.5) {
             // 如果没有乘坐其他实体且有足够速度，附加 360 度托马斯大回旋
-            float rotationSpeed = Mth.randomBetween(level().random, 3, 5);
+            float rotationSpeed = Mth.randomBetween(level().getRandom(), 3, 5);
             // 随机方向
             float yRotSpeed = this.getUUID().getLeastSignificantBits() % 2 == 0 ? rotationSpeed : -rotationSpeed;
             float xRotSpeed = this.getUUID().getMostSignificantBits() % 2 == 0 ? rotationSpeed : -rotationSpeed;
@@ -145,24 +162,20 @@ public class DollEntity extends Entity {
             this.checkCollisionKnockback();
         }
 
-        // 记录上一刻的位置（用于插值渲染）
-        this.xo = this.getX();
-        this.yo = this.getY();
-        this.zo = this.getZ();
-
-        // 获取当前位置的最高流体类型和运动向量
-        FluidType fluidType = this.getMaxHeightFluidType();
+        // 获取当前位置的流体状态和运动向量
         Vec3 movement = this.getDeltaMovement();
         // 流体影响高度
         double fluidHeight = 1.0E-5;
 
         // 流体中的运动逻辑
-        if (!fluidType.isAir() && this.getFluidTypeHeight(fluidType) > fluidHeight) {
+        boolean inWater = this.isInWater() && this.getFluidHeight(FluidTags.WATER) > fluidHeight;
+        boolean inLava = this.isInLava() && this.getFluidHeight(FluidTags.LAVA) > fluidHeight;
+        if (inWater || inLava) {
             double frictionFactor = 0;
             double floatingFactor = 0;
             if (GeneralConfig.DOLL_AFFECTED_BY_WATER.get()) {
                 // 流体摩擦阻力，岩浆阻力更大
-                frictionFactor = this.isInLava() ? 0.9 : 0.95;
+                frictionFactor = inLava ? 0.9 : 0.95;
                 // 轻微上浮力
                 floatingFactor = movement.y < 0.06 ? 5.0E-4 : 0;
             }
@@ -183,7 +196,7 @@ public class DollEntity extends Entity {
             if (this.onGround()) {
                 // 在地面时使用地面方块的摩擦系数
                 BlockPos groundPos = getBlockPosBelowThatAffectsMyMovement();
-                frictionFactor = this.level().getBlockState(groundPos).getFriction(level(), groundPos, this) * 0.98;
+                frictionFactor = this.level().getBlockState(groundPos).getBlock().getFriction() * 0.98;
             }
             // 应用摩擦力（水平和垂直分别处理）
             this.setDeltaMovement(this.getDeltaMovement().multiply(frictionFactor, 0.98, frictionFactor));
@@ -199,16 +212,7 @@ public class DollEntity extends Entity {
 
         // 水流推动检测
         if (GeneralConfig.DOLL_AFFECTED_BY_WATER.get()) {
-            this.hasImpulse |= this.updateInWaterStateAndDoFluidPushing();
-        }
-
-        // 服务端检查运动变化（用于网络同步）
-        if (!this.level().isClientSide) {
-            double movementDelta = this.getDeltaMovement().subtract(movement).lengthSqr();
-            if (movementDelta > 0.01D) {
-                // 标记需要同步给客户端
-                this.hasImpulse = true;
-            }
+            this.updateFluidInteraction();
         }
     }
 
@@ -219,10 +223,22 @@ public class DollEntity extends Entity {
         return this.level().getEntities(this, this.getBoundingBox(), e -> e instanceof DollEntity).isEmpty();
     }
 
+    /**
+     * 玩偶是方块造型的玩具，音效走 BLOCKS 通道，和方块玩偶保持一致，
+     * 避免玩家静音 NEUTRAL（生物）通道后听不到玩偶叫声
+     */
+    @Override
+    public SoundSource getSoundSource() {
+        return SoundSource.BLOCKS;
+    }
+
     private void noise(ServerLevel serverLevel) {
         RandomSource randomSource = serverLevel.getRandom();
         float pitch = 0.75f + randomSource.nextFloat() * 0.5f;
-        this.playSound(ModSounds.DUCK_TOY.get(), 1, pitch);
+        // 按显示方块的注册路径查 doll_sounds.json 映射，未映射的玩偶播放默认鸭子叫
+        SoundEvent dollSound = DollSounds.getDollSound(
+                BuiltInRegistries.BLOCK.getKey(this.getDisplayBlockState().getBlock()).getPath());
+        this.playSound(dollSound, 1, pitch);
 
         Vec3 notePos = this.position().add(
                 randomSource.nextFloat() / 2 - 0.25,
@@ -233,21 +249,38 @@ public class DollEntity extends Entity {
         serverLevel.sendParticles(ParticleTypes.NOTE, notePos.x(), notePos.y(), notePos.z(), 0, color, 0, 0, 1);
     }
 
-    private boolean bounce() {
-        long time = this.bounceTime - System.currentTimeMillis();
-        if (time > 0) {
-            return false;
-        }
-        this.bounceTime = System.currentTimeMillis() + 500;
-        return true;
+    /**
+     * 右键捏玩偶：每次点击都立即重新开始收缩动画，频繁右键时效果能跟上点击节奏
+     */
+    private void playSqueeze(ServerLevel level) {
+        this.nextHitEffectTime = System.currentTimeMillis() + 500;
+        this.triggerAnim(DollAnimations.SQUEEZE, DollAnimations.SQUEEZE);
+        this.noise(level);
+    }
+
+    /**
+     * 受击触发：500ms 内不重复，防止被怪群围攻时音效刷屏
+     */
+    private boolean canSqueezeFromHit() {
+        return System.currentTimeMillis() >= this.nextHitEffectTime;
     }
 
     @Override
-    public InteractionResult interact(Player player, InteractionHand hand) {
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        DollAnimations.registerSqueeze(controllers);
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return animationCache;
+    }
+
+    @Override
+    public InteractionResult interact(Player player, InteractionHand hand, Vec3 location) {
         ItemStack itemStack = player.getItemInHand(hand);
-        if (itemStack.is(ModItems.TWEAKS_TOOL.get())) {
-            if (level().isClientSide) {
-                DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> TweaksToolScreen::openScreen);
+        if (itemStack.is(ModItems.TWEAKS_TOOL)) {
+            if (level().isClientSide()) {
+                ClientHooks.openTweaksScreen.run();
             }
             return InteractionResult.SUCCESS;
         } else if (getHoldItem().isEmpty() && player.isCrouching() && !itemStack.isEmpty()) {
@@ -272,14 +305,10 @@ public class DollEntity extends Entity {
             return InteractionResult.SUCCESS;
         }
 
-        if (!bounce()) {
-            return InteractionResult.PASS;
-        }
         if (player.level() instanceof ServerLevel serverLevel) {
-            noise(serverLevel);
-            return InteractionResult.SUCCESS;
+            playSqueeze(serverLevel);
         }
-        return InteractionResult.PASS;
+        return InteractionResult.CONSUME;
     }
 
     @Override
@@ -288,7 +317,7 @@ public class DollEntity extends Entity {
     }
 
     @Override
-    protected BlockPos getBlockPosBelowThatAffectsMyMovement() {
+    public BlockPos getBlockPosBelowThatAffectsMyMovement() {
         return this.getOnPos(0.999999F);
     }
 
@@ -298,33 +327,30 @@ public class DollEntity extends Entity {
     }
 
     @Override
-    public boolean hurt(DamageSource source, float amount) {
-        if (this.isInvulnerableTo(source)) {
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
+        if (this.isInvulnerableToBase(source)) {
             return false;
         }
         // 必须是玩家直接造成的伤害才能打掉
-        if (!this.isRemoved() && !this.level().isClientSide && source.getDirectEntity() instanceof Player) {
-            this.kill();
+        if (!this.isRemoved() && source.getDirectEntity() instanceof Player) {
+            this.kill(level);
             this.markHurt();
-            this.dropItem(source.getEntity());
+            this.dropItem(level, source.getEntity());
             return true;
         }
         // 否则仅弹一下，并发出声音
-        if (this.level() instanceof ServerLevel serverLevel) {
-            if (!bounce()) {
-                return false;
-            }
-            noise(serverLevel);
+        if (canSqueezeFromHit()) {
+            playSqueeze(level);
         }
         return false;
     }
 
-    private void dropItem(@Nullable Entity pBrokenEntity) {
+    private void dropItem(ServerLevel level, @Nullable Entity pBrokenEntity) {
         if (!getHoldItem().isEmpty()) {
-            this.spawnAtLocation(getHoldItem().copy());
+            this.spawnAtLocation(level, getHoldItem().copy());
             setHoldItem(ItemStack.EMPTY);
         }
-        if (this.level().getGameRules().getBoolean(GameRules.RULE_DOENTITYDROPS)) {
+        if (level.getGameRules().get(GameRules.ENTITY_DROPS)) {
             this.playSound(SoundEvents.WOOL_BREAK, 1.0F, 1.0F);
             if (pBrokenEntity instanceof Player player) {
                 if (player.getAbilities().instabuild) {
@@ -332,12 +358,12 @@ public class DollEntity extends Entity {
                 }
             }
             ItemStack dollItem = DollEntityItem.createItemWithEntity(this);
-            this.spawnAtLocation(dollItem);
+            this.spawnAtLocation(level, dollItem);
         }
     }
 
     @Override
-    public boolean canBeCollidedWith() {
+    public boolean canBeCollidedWith(@Nullable Entity other) {
         return true;
     }
 
@@ -355,11 +381,11 @@ public class DollEntity extends Entity {
     }
 
     @Override
-    public double getMyRidingOffset() {
+    protected Vec3 getPassengerAttachmentPoint(Entity entity, EntityDimensions dimensions, float partialTick) {
         if (this.getVehicle() instanceof Phantom) {
-            return 0.125;
+            return new Vec3(0, 0.625, 0);
         }
-        return 0.3125;
+        return new Vec3(0, 0.8125, 0);
     }
 
     @Override
@@ -368,15 +394,15 @@ public class DollEntity extends Entity {
     }
 
     @Override
-    protected void defineSynchedData() {
-        this.entityData.define(DATA_BLOCK_STATE, Blocks.AIR.defaultBlockState());
-        this.entityData.define(DATA_SCALE, new Vector3f(1.0f));
-        this.entityData.define(DATA_TRANSLATION, new Vector3f());
-        this.entityData.define(CUSTOM_DOLL_ID, StringUtils.EMPTY);
-        this.entityData.define(DATA_HOLD_ITEM, ItemStack.EMPTY);
-        this.entityData.define(DATA_ITEM_SCALE, new Vector3f(1.0f));
-        this.entityData.define(DATA_ITEM_TRANSLATION, new Vector3f());
-        this.entityData.define(DATA_ITEM_ROTATION, new Vector3f());
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(DATA_BLOCK_STATE, Blocks.AIR.defaultBlockState());
+        builder.define(DATA_SCALE, new Vector3f(1.0f));
+        builder.define(DATA_TRANSLATION, new Vector3f());
+        builder.define(CUSTOM_DOLL_ID, StringUtils.EMPTY);
+        builder.define(DATA_HOLD_ITEM, ItemStack.EMPTY);
+        builder.define(DATA_ITEM_SCALE, new Vector3f(1.0f));
+        builder.define(DATA_ITEM_TRANSLATION, new Vector3f());
+        builder.define(DATA_ITEM_ROTATION, new Vector3f());
     }
 
     @Override
@@ -388,71 +414,48 @@ public class DollEntity extends Entity {
     }
 
     @Override
-    public void readAdditionalSaveData(CompoundTag tag) {
-        if (tag.contains(TAG_BLOCK_STATE)) {
-            HolderLookup<Block> lookup = this.level().holderLookup(Registries.BLOCK);
-            setDisplayBlockState(NbtUtils.readBlockState(lookup, tag.getCompound(TAG_BLOCK_STATE)));
-        }
-        if (tag.contains(TAG_CUSTOM_DOLL_ID)) {
-            setCustomDollId(tag.getString(TAG_CUSTOM_DOLL_ID));
-        }
-        if (tag.contains(TAG_SCALE)) {
-            setDisplayScale(readVector3f(tag.getCompound(TAG_SCALE)));
-        }
-        if (tag.contains(TAG_TRANSLATION)) {
-            setDisplayTranslation(readVector3f(tag.getCompound(TAG_TRANSLATION)));
-        }
+    protected void readAdditionalSaveData(ValueInput input) {
+        input.read(TAG_BLOCK_STATE, BlockState.CODEC).ifPresent(this::setDisplayBlockState);
+        input.getString(TAG_CUSTOM_DOLL_ID).ifPresent(this::setCustomDollId);
+        input.child(TAG_SCALE).ifPresent(child ->
+                setDisplayScale(readVector3f(child, 1)));
+        input.child(TAG_TRANSLATION).ifPresent(child ->
+                setDisplayTranslation(readVector3f(child, 0)));
 
-        if (tag.contains(TAG_DROP_FROM_PHANTOM)) {
-            this.dropFromPhantom = tag.getBoolean(TAG_DROP_FROM_PHANTOM);
-        }
-        if (tag.contains(TAG_DROP_FROM_PHANTOM_TIME)) {
-            this.dropFromPhantomTick = tag.getInt(TAG_DROP_FROM_PHANTOM_TIME);
-        }
+        this.dropFromPhantom = input.getBooleanOr(TAG_DROP_FROM_PHANTOM, false);
+        this.dropFromPhantomTick = input.getIntOr(TAG_DROP_FROM_PHANTOM_TIME, 0);
 
-        if (tag.contains(TAG_HOLD_ITEM)) {
-            CompoundTag itemTag = tag.getCompound(TAG_HOLD_ITEM);
-            if (tag.isEmpty()) {
-                setHoldItem(ItemStack.EMPTY);
-            } else {
-                setHoldItem(ItemStack.of(itemTag));
-            }
-        }
-        if (tag.contains(TAG_ITEM_SCALE)) {
-            setItemScale(readVector3f(tag.getCompound(TAG_ITEM_SCALE)));
-        }
-        if (tag.contains(TAG_ITEM_TRANSLATION)) {
-            setItemTranslation(readVector3f(tag.getCompound(TAG_ITEM_TRANSLATION)));
-        }
-        if (tag.contains(TAG_ITEM_ROTATION)) {
-            setItemRotation(readVector3f(tag.getCompound(TAG_ITEM_ROTATION)));
-        }
+        setHoldItem(input.read(TAG_HOLD_ITEM, ItemStack.CODEC).orElse(ItemStack.EMPTY));
+        input.child(TAG_ITEM_SCALE).ifPresent(child ->
+                setItemScale(readVector3f(child, 1)));
+        input.child(TAG_ITEM_TRANSLATION).ifPresent(child ->
+                setItemTranslation(readVector3f(child, 0)));
+        input.child(TAG_ITEM_ROTATION).ifPresent(child ->
+                setItemRotation(readVector3f(child, 0)));
     }
 
     @Override
-    public void addAdditionalSaveData(CompoundTag tag) {
+    public void addAdditionalSaveData(ValueOutput output) {
         BlockState blockState = getDisplayBlockState();
         if (blockState != Blocks.AIR.defaultBlockState()) {
-            tag.put(TAG_BLOCK_STATE, NbtUtils.writeBlockState(blockState));
+            output.store(TAG_BLOCK_STATE, BlockState.CODEC, blockState);
         }
         if (StringUtils.isNotBlank(getCustomDollId())) {
-            tag.putString(TAG_CUSTOM_DOLL_ID, getCustomDollId());
+            output.putString(TAG_CUSTOM_DOLL_ID, getCustomDollId());
         }
 
-        tag.put(TAG_SCALE, writeVector3f(getDisplayScale()));
-        tag.put(TAG_TRANSLATION, writeVector3f(getDisplayTranslation()));
+        writeVector3f(output.child(TAG_SCALE), getDisplayScale());
+        writeVector3f(output.child(TAG_TRANSLATION), getDisplayTranslation());
 
-        tag.putBoolean(TAG_DROP_FROM_PHANTOM, this.dropFromPhantom);
-        tag.putInt(TAG_DROP_FROM_PHANTOM_TIME, this.dropFromPhantomTick);
+        output.putBoolean(TAG_DROP_FROM_PHANTOM, this.dropFromPhantom);
+        output.putInt(TAG_DROP_FROM_PHANTOM_TIME, this.dropFromPhantomTick);
 
         if (!getHoldItem().isEmpty()) {
-            tag.put(TAG_HOLD_ITEM, getHoldItem().serializeNBT());
-        } else {
-            tag.put(TAG_HOLD_ITEM, new CompoundTag());
+            output.store(TAG_HOLD_ITEM, ItemStack.CODEC, getHoldItem());
         }
-        tag.put(TAG_ITEM_SCALE, writeVector3f(getItemScale()));
-        tag.put(TAG_ITEM_TRANSLATION, writeVector3f(getItemTranslation()));
-        tag.put(TAG_ITEM_ROTATION, writeVector3f(getItemRotation()));
+        writeVector3f(output.child(TAG_ITEM_SCALE), getItemScale());
+        writeVector3f(output.child(TAG_ITEM_TRANSLATION), getItemTranslation());
+        writeVector3f(output.child(TAG_ITEM_ROTATION), getItemRotation());
     }
 
     public void removePhantomRecord(CompoundTag tag) {
@@ -460,16 +463,14 @@ public class DollEntity extends Entity {
         tag.remove(TAG_DROP_FROM_PHANTOM_TIME);
     }
 
-    private Vector3f readVector3f(CompoundTag tag) {
-        return new Vector3f(tag.getFloat("x"), tag.getFloat("y"), tag.getFloat("z"));
+    private Vector3f readVector3f(ValueInput input, float defaultValue) {
+        return new Vector3f(input.getFloatOr("x", defaultValue), input.getFloatOr("y", defaultValue), input.getFloatOr("z", defaultValue));
     }
 
-    private CompoundTag writeVector3f(Vector3f vector) {
-        CompoundTag tag = new CompoundTag();
-        tag.putFloat("x", vector.x);
-        tag.putFloat("y", vector.y);
-        tag.putFloat("z", vector.z);
-        return tag;
+    private void writeVector3f(ValueOutput output, Vector3fc vector) {
+        output.putFloat("x", vector.x());
+        output.putFloat("y", vector.y());
+        output.putFloat("z", vector.z());
     }
 
     public BlockState getDisplayBlockState() {
@@ -480,19 +481,19 @@ public class DollEntity extends Entity {
         this.entityData.set(DATA_BLOCK_STATE, blockState);
     }
 
-    public Vector3f getDisplayScale() {
+    public Vector3fc getDisplayScale() {
         return this.entityData.get(DATA_SCALE);
     }
 
-    public void setDisplayScale(Vector3f scale) {
+    public void setDisplayScale(Vector3fc scale) {
         this.entityData.set(DATA_SCALE, scale, true);
     }
 
-    public Vector3f getDisplayTranslation() {
+    public Vector3fc getDisplayTranslation() {
         return this.entityData.get(DATA_TRANSLATION);
     }
 
-    public void setDisplayTranslation(Vector3f translation) {
+    public void setDisplayTranslation(Vector3fc translation) {
         this.entityData.set(DATA_TRANSLATION, translation, true);
     }
 
@@ -504,27 +505,27 @@ public class DollEntity extends Entity {
         this.entityData.set(DATA_HOLD_ITEM, holdItem.copy());
     }
 
-    public Vector3f getItemScale() {
+    public Vector3fc getItemScale() {
         return this.entityData.get(DATA_ITEM_SCALE);
     }
 
-    public void setItemScale(Vector3f scale) {
+    public void setItemScale(Vector3fc scale) {
         this.entityData.set(DATA_ITEM_SCALE, scale, true);
     }
 
-    public Vector3f getItemTranslation() {
+    public Vector3fc getItemTranslation() {
         return this.entityData.get(DATA_ITEM_TRANSLATION);
     }
 
-    public void setItemTranslation(Vector3f translation) {
+    public void setItemTranslation(Vector3fc translation) {
         this.entityData.set(DATA_ITEM_TRANSLATION, translation, true);
     }
 
-    public Vector3f getItemRotation() {
+    public Vector3fc getItemRotation() {
         return this.entityData.get(DATA_ITEM_ROTATION);
     }
 
-    public void setItemRotation(Vector3f rotations) {
+    public void setItemRotation(Vector3fc rotations) {
         this.entityData.set(DATA_ITEM_ROTATION, rotations, true);
     }
 
@@ -536,17 +537,8 @@ public class DollEntity extends Entity {
         return this.entityData.get(CUSTOM_DOLL_ID);
     }
 
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
-    }
-
     public void setInThrowing(boolean inThrowing) {
         this.inThrowing = inThrowing;
-    }
-
-    public long getBounceTime() {
-        return bounceTime;
     }
 
     public void setDropFromPhantom(boolean dropFromPhantom) {
@@ -554,22 +546,17 @@ public class DollEntity extends Entity {
     }
 
     @Override
-    public void setRot(float yRot, float xRot) {
-        super.setRot(yRot, xRot);
-    }
-
-    @Override
     public EntityDimensions getDimensions(Pose pose) {
-        Vector3f displayScale = this.getDisplayScale();
+        Vector3fc displayScale = this.getDisplayScale();
         EntityDimensions dimensions = super.getDimensions(pose);
-        float width = Math.max(Math.abs(displayScale.x), Math.abs(displayScale.z));
-        float height = Math.abs(displayScale.y);
+        float width = Math.max(Math.abs(displayScale.x()), Math.abs(displayScale.z()));
+        float height = Math.abs(displayScale.y());
         return dimensions.scale(width, height);
     }
 
     private void checkCollisionKnockback() {
         // 仅在服务器端进行击退处理
-        if (this.level().isClientSide) {
+        if (this.level().isClientSide()) {
             return;
         }
 
@@ -621,7 +608,6 @@ public class DollEntity extends Entity {
             }
 
             entity.setDeltaMovement(speed);
-            entity.hasImpulse = true;
             this.knockbackCount++;
 
             // 生成击中粒子效果

@@ -1,3 +1,5 @@
 {
-  "parent": "builtin/entity"
+  "textures": {
+    "particle": "kaleidoscope_doll:item/doll_entity_item_bg"
+  }
 }

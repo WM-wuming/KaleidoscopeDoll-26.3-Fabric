@@ -1,11 +1,11 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.data.custom;
 
 import com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll;
+import com.github.ysbbbbbb.kaleidoscopedoll.network.ServerDollPackSync;
 import com.google.common.collect.Sets;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.util.GsonHelper;
-import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +19,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipFile;
 
 public class ServerCustomDollLoader {
-    private static final Path ROOT = FMLPaths.CONFIGDIR.get().resolve(KaleidoscopeDoll.MOD_ID).resolve("custom");
+    private static final Path ROOT = CustomDollConfigPacks.ROOT;
     private static final String DIRECTORY_MODELS_NAME = "models";
     /**
      * zip 文件有两种情况，一直是直接下面就是 models 和 lang 文件夹
@@ -29,7 +29,6 @@ public class ServerCustomDollLoader {
     private static final Pattern ZIP_MODELS_PATTERN = Pattern.compile("^(?:[^/]+/)?models/[^/]+\\.json$");
 
     private static final String JSON = ".json";
-    private static final String ZIP = ".zip";
 
     /**
      * 缓存数据
@@ -52,7 +51,7 @@ public class ServerCustomDollLoader {
                 }
 
                 // zip 文件
-                if (Files.isRegularFile(path) && path.toString().endsWith(ZIP)) {
+                if (CustomDollConfigPacks.isArchive(path)) {
                     ServerCustomDollLoader.loadFromZip(path);
                 }
             });
@@ -60,6 +59,7 @@ public class ServerCustomDollLoader {
 
         // 最后把内部数据包读取的数据存入
         ServerCustomDollResourceLoader.putAll(MODELS);
+        ServerDollPackSync.refresh(ROOT);
     }
 
     private static void loadFromDirectory(Path directory) {
@@ -83,6 +83,10 @@ public class ServerCustomDollLoader {
 
     private static void loadFromZip(Path zipFile) {
         try (ZipFile zip = new ZipFile(zipFile.toFile())) {
+            if (CustomDollConfigPacks.hasManifest(zip)) {
+                CustomDollConfigPacks.readModelIds(zip, MODELS);
+                return;
+            }
             zip.stream().forEach(entry -> {
                 String entryName = entry.getName().replace('\\', '/');
                 if (entryName.startsWith("/")) {

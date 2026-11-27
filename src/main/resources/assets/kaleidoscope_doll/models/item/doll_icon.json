@@ -1,6 +1,7 @@
 {
   "parent": "item/generated",
   "textures": {
-    "layer0": "kaleidoscope_doll:item/doll_icon"
+    "layer0": "kaleidoscope_doll:item/doll_icon",
+    "particle": "kaleidoscope_doll:item/doll_icon"
   }
 }

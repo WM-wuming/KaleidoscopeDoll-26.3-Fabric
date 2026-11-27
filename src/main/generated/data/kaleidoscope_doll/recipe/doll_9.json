@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "WWW",
+    "WXW",
+    "WWW"
+  ],
+  "key": {
+    "W": "minecraft:cyan_wool",
+    "X": "minecraft:string"
+  },
+  "result": {
+    "id": "kaleidoscope_doll:doll_9",
+    "count": 1
+  }
+}

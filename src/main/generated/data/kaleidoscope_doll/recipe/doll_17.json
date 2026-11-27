@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "WWW",
+    "WXW",
+    "WWW"
+  ],
+  "key": {
+    "W": "minecraft:yellow_wool",
+    "X": "minecraft:rotten_flesh"
+  },
+  "result": {
+    "id": "kaleidoscope_doll:doll_17",
+    "count": 1
+  }
+}

@@ -3,7 +3,7 @@ package com.github.ysbbbbbb.kaleidoscopedoll.data.custom;
 import com.google.common.collect.Sets;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.GsonHelper;
 
@@ -22,7 +22,7 @@ public class ServerCustomDollResourceLoader {
         MODELS.clear();
 
         for (String namespace : manager.getNamespaces()) {
-            ResourceLocation location = new ResourceLocation(namespace, FILE_PATH);
+            Identifier location = Identifier.fromNamespaceAndPath(namespace, FILE_PATH);
             manager.getResource(location).ifPresent(resource -> {
                 try (var reader = resource.openAsReader()) {
                     JsonArray array = GsonHelper.parseArray(reader);

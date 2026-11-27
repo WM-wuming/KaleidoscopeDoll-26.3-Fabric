@@ -1,21 +1,18 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.block;
 
 import com.github.ysbbbbbb.kaleidoscopedoll.inventory.ComputerMenu;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.SoundType;
@@ -27,15 +24,13 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-
-@SuppressWarnings("deprecation")
 public class ComputerBlock extends HorizontalDirectionalBlock {
     private static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
     private static final VoxelShape NORTH_AABB = Shapes.or(
@@ -50,25 +45,28 @@ public class ComputerBlock extends HorizontalDirectionalBlock {
             Block.box(1, 0, 0, 16, 4, 16),
             Block.box(3, 4, 1, 11, 15, 15)
     );
-
     private static final VoxelShape WEST_AABB = Shapes.or(
             Block.box(0, 0, 0, 15, 4, 16),
             Block.box(5, 4, 1, 13, 15, 15)
     );
 
-    public ComputerBlock() {
-        super(BlockBehaviour.Properties.of()
+    public static BlockBehaviour.Properties computerProperties() {
+        return BlockBehaviour.Properties.of()
                 .instrument(NoteBlockInstrument.BASEDRUM)
                 .sound(SoundType.METAL)
                 .strength(1.25F, 4.2F)
-                .noOcclusion());
+                .noOcclusion();
+    }
+
+    public ComputerBlock(BlockBehaviour.Properties properties) {
+        super(properties);
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.SOUTH)
                 .setValue(WATERLOGGED, false));
     }
 
     @Override
-    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-        if (level.isClientSide) {
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        if (level.isClientSide()) {
             return InteractionResult.SUCCESS;
         } else {
             player.openMenu(state.getMenuProvider(level, pos));
@@ -79,16 +77,16 @@ public class ComputerBlock extends HorizontalDirectionalBlock {
     @Override
     public MenuProvider getMenuProvider(BlockState blockState, Level level, BlockPos blockPos) {
         return new SimpleMenuProvider((id, inventory, player) ->
-                new ComputerMenu(id, inventory), Component.literal("computer"));
+                new ComputerMenu(id, inventory), Component.translatable("block.kaleidoscope_doll.computer"));
     }
 
     @Override
-    public BlockState updateShape(BlockState currentState, Direction direction, BlockState neighborState,
-                                  LevelAccessor level, BlockPos currentPos, BlockPos neighborPos) {
+    protected BlockState updateShape(BlockState currentState, LevelReader level, ScheduledTickAccess ticks, BlockPos currentPos,
+                                     Direction direction, BlockPos neighborPos, BlockState neighborState, RandomSource random) {
         if (currentState.getValue(WATERLOGGED)) {
-            level.scheduleTick(currentPos, Fluids.WATER, Fluids.WATER.getTickDelay(level));
+            ticks.scheduleTick(currentPos, Fluids.WATER, Fluids.WATER.getTickDelay(level));
         }
-        return super.updateShape(currentState, direction, neighborState, level, currentPos, neighborPos);
+        return super.updateShape(currentState, level, ticks, currentPos, direction, neighborPos, neighborState, random);
     }
 
     @Override
@@ -120,10 +118,5 @@ public class ComputerBlock extends HorizontalDirectionalBlock {
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING, WATERLOGGED);
-    }
-
-    @Override
-    public void appendHoverText(ItemStack pStack, @Nullable BlockGetter pLevel, List<Component> pTooltip, TooltipFlag pFlag) {
-        pTooltip.add(Component.translatable("tooltip.kaleidoscope_doll.computer").withStyle(ChatFormatting.DARK_GRAY));
     }
 }

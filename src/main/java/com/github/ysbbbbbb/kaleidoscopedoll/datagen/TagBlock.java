@@ -1,22 +1,24 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.datagen;
 
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModBlocks;
+import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricTagsProvider;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.data.PackOutput;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.BlockTags;
-import net.minecraftforge.common.data.BlockTagsProvider;
-import net.minecraftforge.common.data.ExistingFileHelper;
-import org.jetbrains.annotations.Nullable;
+import net.minecraft.world.level.block.Block;
 
 import java.util.concurrent.CompletableFuture;
 
-public class TagBlock extends BlockTagsProvider {
-    public TagBlock(PackOutput output, CompletableFuture<HolderLookup.Provider> lookupProvider, String modId, @Nullable ExistingFileHelper existingFileHelper) {
-        super(output, lookupProvider, modId, existingFileHelper);
+public class TagBlock extends FabricTagsProvider<Block> {
+    public TagBlock(FabricPackOutput output, CompletableFuture<HolderLookup.Provider> lookupProvider) {
+        super(output, Registries.BLOCK, lookupProvider);
     }
 
     @Override
-    protected void addTags(HolderLookup.Provider pProvider) {
-        this.tag(BlockTags.MINEABLE_WITH_PICKAXE).add(ModBlocks.DOLL_MACHINE.get());
+    protected void addTags(HolderLookup.Provider provider) {
+        this.builder(BlockTags.MINEABLE_WITH_PICKAXE)
+                .add(BuiltInRegistries.BLOCK.getResourceKey(ModBlocks.DOLL_MACHINE).orElseThrow());
     }
 }
