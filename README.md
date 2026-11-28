@@ -8,7 +8,7 @@
 
 ## 本移植版新增与适配
 
-- **服务端自定义玩偶同步**：将新版 Java 自定义玩偶 ZIP 放入服务端 `config/kaleidoscope_doll/custom/`，重启或执行 `/kaleidoscope_doll reload`。开启服务器资源包接收的客户端进服后可直接同步模型、贴图和介绍，不必手动安装 ZIP 或配置下载地址。缓存按服务器隔离，离服后停用。每次最多同步 8 个 ZIP、合计 16 MiB。
+- **服务端自定义玩偶同步**：将新版 Java 自定义玩偶 ZIP 放入服务端 `config/kaleidoscope_doll/custom/`，重启或执行 `/kaleidoscope_doll reload`。缓存按服务器隔离，离服后停用。
 - **自定义玩偶配置包**：安装方式与迁移注意事项见[配置文档](docs/sponsored-doll-config.md)；赞助者玩偶配置 ZIP 不随仓库附送。
 - **玩偶的新功能**：玩偶可与末影珍珠、风弹或不死图腾合成，在铁砧中可以把头盔放在前面玩偶放在后面像附魔书一样给他们加在一起然后就可以在带着头盔的情况下带着玩偶
 
