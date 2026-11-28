@@ -112,11 +112,12 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - name: Download built mod JAR
+      - name: Download all built mod JARs
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: kaleidoscopedoll-26.3-fabric
+          pattern: kaleidoscopedoll-*-fabric
           path: release-assets
+          merge-multiple: false
       - name: Publish version if it does not exist
         shell: bash
         env:
@@ -146,10 +147,23 @@ jobs:
           fi
 
           shopt -s nullglob
-          jars=(release-assets/*.jar)
-          if [[ ${#jars[@]} -ne 1 ]]; then
-            echo "::error::Expected exactly one mod JAR."
+          artifacts=(release-assets/kaleidoscopedoll-*-fabric/)
+          if [[ ${#artifacts[@]} -eq 0 ]]; then
+            echo "::error::No mod build artifacts were downloaded."
             exit 1
           fi
-          gh release create "$tag" "${jars[0]}" \
+
+          jars=()
+          for artifact in "${artifacts[@]}"; do
+            artifact_name=${artifact%/}
+            artifact_name=${artifact_name##*/}
+            matches=("$artifact$artifact_name"-*.jar)
+            if [[ ${#matches[@]} -ne 1 ]]; then
+              echo "::error::Expected exactly one mod JAR in $artifact_name."
+              exit 1
+            fi
+            jars+=("${matches[0]}")
+          done
+
+          gh release create "$tag" "${jars[@]}" \
             --target "$GITHUB_SHA" --title "Kaleidoscope Doll $version" --generate-notes
