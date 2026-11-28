@@ -11,9 +11,16 @@ plugins {
 def target = providers.gradleProperty("minecraftTarget").orElse(project.minecraft_version).get()
 def targets = [
     "1.20.1": [fabric: "0.92.12+1.20.1", gecko: "rt5We1KU", geckoVersion: "4.8.6", config: "HvR3IdRE", jei: "ULSjaCQA", resourcePack: [15, 0], dataPack: [15, 0], java: 17],
+    "1.20.2": [fabric: "0.91.6+1.20.2", gecko: "496UKM7k", geckoVersion: "4.3.1", config: "sK1XwxTt", nightConfig: "3.6.6", jei: "7Qec2BlS", resourcePack: [18, 0], dataPack: [18, 0], java: 17, baseline: "1.20.1"],
+    "1.20.4": [fabric: "0.97.3+1.20.4", gecko: "9xn1SoTo", geckoVersion: "4.4.4", config: "xbVGsTLe", nightConfig: "3.6.6", jei: "QwWkNxeF", resourcePack: [22, 0], dataPack: [26, 0], java: 17, baseline: "1.20.1"],
+    "1.20.6": [fabric: "0.100.8+1.20.6", gecko: "9IHFGXrW", geckoVersion: "4.5.4", config: "LDpciQaD", nightConfig: "3.6.7", jei: "YhyO5Dkr", resourcePack: [32, 0], dataPack: [41, 0], java: 21, baseline: "1.21.1"],
+    "1.21":   [fabric: "0.102.0+1.21", gecko: "11VBhLU2", geckoVersion: "4.5.8", config: "GOreNSW6", jei: "rgEqZub8", resourcePack: [34, 0], dataPack: [48, 0], java: 21, baseline: "1.21.1"],
     "1.21.1": [fabric: "0.116.18+1.21.1", gecko: "ET6x3zyz", geckoVersion: "4.9.5", config: "N5qzq0XV", jei: "rgEqZub8", resourcePack: [34, 0], dataPack: [48, 0], java: 21],
     "1.21.4": [fabric: "0.119.4+1.21.4", gecko: "HFSs3Co0", geckoVersion: "4.8.5", config: "SSKF75hc", nightConfig: "3.8.1", resourcePack: [46, 0], dataPack: [61, 0], java: 21],
+    "1.21.5": [fabric: "0.128.2+1.21.5", gecko: "AyXpbm2h", geckoVersion: "5.1.0", config: "fWnEuNPu", nightConfig: "3.8.1", resourcePack: [55, 0], dataPack: [71, 0], java: 21, baseline: "1.21.10"],
+    "1.21.8": [fabric: "0.136.1+1.21.8", gecko: "k4Azk0wN", geckoVersion: "5.2.2", config: "YbUUjWdw", nightConfig: "3.8.3", resourcePack: [64, 0], dataPack: [81, 0], java: 21, baseline: "1.21.10"],
     "1.21.10": [fabric: "0.138.4+1.21.10", gecko: "7qjQQSWv", geckoVersion: "5.3-alpha-3", config: "IKHTwwTv", jei: "8yGN172x", resourcePack: [69, 0], dataPack: [88, 0], java: 21],
+    "1.21.11": [fabric: "0.141.6+1.21.11", gecko: "OUCukQHN", geckoVersion: "5.4.6", config: "uXrWPsCu", nightConfig: "3.8.3", jei: "EyMfb3aZ", resourcePack: [75, 0], dataPack: [94, 1], java: 21],
     "26.1":   [fabric: "0.145.1+26.1", gecko: "yUpAp23B", geckoVersion: "5.5", config: "J2q1Fj7S", jei: "W10KOrSH", resourcePack: [84, 0], dataPack: [101, 1]],
     "26.1.2": [fabric: "0.155.3+26.1.2", gecko: "rZnYqWVd", geckoVersion: "5.5.3", config: "jUe0ucoE", jei: "J55aCpsE", resourcePack: [84, 0], dataPack: [101, 1]],
     "26.2":   [fabric: "0.161.0+26.2", gecko: "FJ4Z5QYo", geckoVersion: "5.5.7", config: "rSd3GiG8", jei: "j62WSkzi", resourcePack: [88, 0], dataPack: [107, 1]],
@@ -30,6 +37,8 @@ def compatibility = target == project.minecraft_version ? "26.3" : "26.1-26.2"
 def minecraftDependency = target == project.minecraft_version ? "~${target}" : target
 def javaRelease = profile.java ?: 25
 def remapped = javaRelease < 25
+def legacyBaseline = profile.baseline ?: target
+def legacyDataPaths = target.startsWith("1.20.")
 apply plugin: (remapped ? 'net.fabricmc.fabric-loom-remap' : 'net.fabricmc.fabric-loom')
 apply from: 'gradle/legacy-resources.gradle'
 
@@ -61,6 +70,7 @@ sourceSets {
 }
 if (remapped) {
     ext.legacyMinecraftTarget = target
+    ext.legacySourceBaseline = legacyBaseline
     ext.legacyHasJei = profile.containsKey("jei")
     apply from: 'gradle/legacy-sources.gradle'
 }
@@ -85,7 +95,7 @@ if (target != project.minecraft_version) {
     }
 }
 
-if (target in ["1.20.1", "1.21.1", "1.21.4"]) {
+if (legacyBaseline in ["1.20.1", "1.21.1", "1.21.4"]) {
     def legacyTests = tasks.register("translateLegacyGameTests", Sync) {
         inputs.property("target", target)
         from("src/gametest/java") {
@@ -93,10 +103,8 @@ if (target in ["1.20.1", "1.21.1", "1.21.4"]) {
                 line = line.replace("net.fabricmc.fabric.api.gametest.v1.GameTest;", "net.minecraft.gametest.framework.GameTest;")
                         .replaceAll(/@GameTest$/, '@GameTest(template = "fabric-gametest-api-v1:empty")')
                         .replace("@GameTest(maxTicks =", '@GameTest(template = "fabric-gametest-api-v1:empty", timeoutTicks =')
-                if (target == "1.20.1") {
-                    line = line.replace("test.makeMockPlayer(GameType.SURVIVAL)", "test.makeMockPlayer()")
-                            .replace(".useItemOn(token, level, player,", ".use(level, player,")
-                }
+                if (legacyBaseline == "1.20.1") line = line.replace("test.makeMockPlayer(GameType.SURVIVAL)", "test.makeMockPlayer()")
+                if (target in ["1.20.1", "1.20.2", "1.20.4"]) line = line.replace(".useItemOn(token, level, player,", ".use(level, player,")
                 return line
             }
         }
@@ -151,10 +159,11 @@ dependencies {
                 "mezz.jei:jei-${target}-fabric:${project.jei_version}")
     }
 
-    if (target == "1.20.1") {
+    if (legacyBaseline == "1.20.1") {
         // The published GeckoLib jar includes McLib, but Loom strips its nested jar metadata.
         localRuntime "com.eliotlash.mclib:mclib:20"
-    } else {
+    }
+    if (target != "1.20.1") {
         // Loom does not put Forge Config API Port's nested Java libraries on the dev classpath.
         def nightConfig = profile.nightConfig ?: project.night_config_version
         compileOnly "com.electronwill.night-config:core:${nightConfig}"
@@ -164,7 +173,10 @@ dependencies {
 }
 
 processResources {
-    def legacyDataPaths = target == "1.20.1"
+    from("src/main/resources/assets/kaleidoscope_doll/custom_dolls/models") {
+        include "*.json"
+        into "data/kaleidoscope_doll/custom_dolls/models"
+    }
     inputs.file(layout.projectDirectory.file("gradle/legacy-resources.gradle"))
     inputs.property "version", project.version
     inputs.property "minecraft_version", minecraftDependency
@@ -219,7 +231,7 @@ processResources {
                 table.pools.each { pool ->
                     restoreConditions(pool)
                     pool.entries.each(restoreConditions)
-                    if (minorLootNeedsBonusRolls(target) && !pool.containsKey("bonus_rolls")) {
+                    if ((remapped || target in ["26.1", "26.1.2"]) && !pool.containsKey("bonus_rolls")) {
                         pool.bonus_rolls = 0
                     }
                 }
@@ -227,10 +239,15 @@ processResources {
             }
             if (remapped) {
                 def metadataFile = new File(destinationDir, "pack.mcmeta")
-                def metadata = new JsonSlurper().parse(metadataFile)
-                metadata.pack.pack_format = profile.resourcePack[0]
-                metadata.pack.supported_formats = [profile.resourcePack[0], target == "1.21.10" ? 81 : profile.dataPack[0]]
-                metadataFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(metadata)) + "\n", "UTF-8")
+                if (profile.resourcePack[0] >= 65) {
+                    // Fabric generates version-correct metadata separately for bundled assets and data.
+                    java.nio.file.Files.deleteIfExists(metadataFile.toPath())
+                } else {
+                    def metadata = new JsonSlurper().parse(metadataFile)
+                    metadata.pack.pack_format = profile.resourcePack[0]
+                    metadata.pack.supported_formats = [profile.resourcePack[0], profile.dataPack[0]]
+                    metadataFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(metadata)) + "\n", "UTF-8")
+                }
             }
             if (remapped && !profile.jei) {
                 def manifestFile = new File(destinationDir, "fabric.mod.json")
@@ -238,17 +255,17 @@ processResources {
                 manifest.entrypoints.remove("jei_mod_plugin")
                 manifestFile.setText(JsonOutput.prettyPrint(JsonOutput.toJson(manifest)) + "\n", "UTF-8")
             }
-            if (target in ["1.20.1", "1.21.1", "1.21.4"]) {
+            if (legacyBaseline in ["1.20.1", "1.21.1", "1.21.4"]) {
                 def mixinFile = new File(destinationDir, "kaleidoscope_doll.mixins.json")
                 def mixins = new JsonSlurper().parse(mixinFile)
-                if (target == "1.21.4") {
+                if (legacyBaseline == "1.21.4") {
                     mixins.client.add("client.DollLayerPoseMixin")
                 } else {
-                    mixins.client.removeAll(["client.CuboidItemModelWrapperMixin", "client.EntityRendererMixin",
+                    mixins.client.removeAll(["client.ClientItemInfoLoaderMixin", "client.CuboidItemModelWrapperMixin", "client.EntityRendererMixin",
                                              "client.EntityRenderStateMixin", "client.LivingEntityRendererMixin"])
                     mixins.client.add("client.ItemRendererMixin")
                 }
-                if (target == "1.20.1") {
+                if (legacyBaseline == "1.20.1") {
                     mixins.mixins.removeAll(["AbstractHurtingProjectileMixin",
                                             "AbstractWindChargeMixin", "WindChargeItemMixin"])
                     mixins.client.remove("client.WindChargeRendererMixin")
@@ -288,10 +305,10 @@ processResources {
                     }
                 }
             }
-            restoreLegacyResources(destinationDir, target)
+            restoreLegacyResources(destinationDir, legacyBaseline, legacyDataPaths)
         }
     }
-    if (target in ["1.20.1", "1.21.1", "1.21.4"]) {
+    if (legacyBaseline in ["1.20.1", "1.21.1", "1.21.4"]) {
         filesMatching("assets/kaleidoscope_doll/geckolib/**/*.json") {
             def mapped = relativePath.segments.toList()
             mapped.remove(2)
@@ -301,14 +318,10 @@ processResources {
     }
 }
 
-static boolean minorLootNeedsBonusRolls(String target) {
-    return target in ["1.20.1", "1.21.1", "1.21.4", "1.21.10", "26.1", "26.1.2"]
-}
-
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = "UTF-8"
     it.options.release.set(javaRelease)
-    if (target in ["1.20.1", "1.21.1"]) it.options.compilerArgs.addAll(["-Xmaxerrs", "1000"])
+    if (legacyBaseline in ["1.20.1", "1.21.1"]) it.options.compilerArgs.addAll(["-Xmaxerrs", "1000"])
 }
 
 def runtimeJava = providers.gradleProperty("minecraftRuntimeJava").map { Integer.parseInt(it) }.orElse(javaRelease)

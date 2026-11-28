@@ -4,7 +4,7 @@ import groovy.json.JsonSlurper
 ext.legacyDataDirectories = [advancement: "advancements", loot_table: "loot_tables", recipe: "recipes",
                              "tags/item": "tags/items", "tags/block": "tags/blocks"]
 
-ext.restoreLegacyResources = { File root, String target ->
+ext.restoreLegacyResources = { File root, String target, boolean legacyDataPaths ->
     if (!(target in ["1.21.1", "1.20.1"])) return
     boolean beforeComponents = target == "1.20.1"
     def json = new JsonSlurper()
@@ -36,7 +36,7 @@ ext.restoreLegacyResources = { File root, String target ->
         if (!(value instanceof String)) return value
         return value.startsWith("#") ? [tag: value.substring(1)] : [item: oldItem(value)]
     }
-    fileTree(root) { include "data/kaleidoscope_doll/${beforeComponents ? 'recipes' : 'recipe'}/**/*.json" }.each { file ->
+    fileTree(root) { include "data/kaleidoscope_doll/${legacyDataPaths ? 'recipes' : 'recipe'}/**/*.json" }.each { file ->
         def recipe = json.parse(file)
         if (recipe.key) recipe.key = recipe.key.collectEntries { k, v -> [(k): oldIngredient(v)] }
         if (recipe.ingredients) recipe.ingredients = recipe.ingredients.collect(oldIngredient)

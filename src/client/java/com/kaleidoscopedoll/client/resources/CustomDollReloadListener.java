@@ -1,0 +1,43 @@
+package com.kaleidoscopedoll.client.resources;
+
+import com.kaleidoscopedoll.KaleidoscopeDoll;
+import com.kaleidoscopedoll.client.bedrock.BedrockModel;
+import com.kaleidoscopedoll.client.custom.CustomDollLoader;
+import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.ResourceManager;
+
+import java.io.IOException;
+import java.io.InputStream;
+
+public class CustomDollReloadListener implements SimpleSynchronousResourceReloadListener {
+    public static BedrockModel DFAULT_DOLL_MODEL;
+    public static final Identifier DEFAULT_TEXTURE_ID = Identifier.fromNamespaceAndPath(KaleidoscopeDoll.MOD_ID, "textures/block/default_custom_doll.png");
+
+    @Override
+    public Identifier getFabricId() {
+        return Identifier.fromNamespaceAndPath(KaleidoscopeDoll.MOD_ID, "custom_doll");
+    }
+
+    @Override
+    public void onResourceManagerReload(ResourceManager manager) {
+        try {
+            if (DFAULT_DOLL_MODEL == null) {
+                readDefaultModel(manager);
+            }
+            CustomDollLoader.reloadResources(manager);
+        } catch (IOException e) {
+            KaleidoscopeDoll.LOGGER.error("Failed to reload custom dolls", e);
+        }
+    }
+
+    private static void readDefaultModel(ResourceManager manager) {
+        manager.getResource(Identifier.fromNamespaceAndPath(KaleidoscopeDoll.MOD_ID, "models/bedrock/default_custom_doll.json")).ifPresent(res -> {
+            try (InputStream stream = res.open()) {
+                DFAULT_DOLL_MODEL = new BedrockModel(stream);
+            } catch (Exception e) {
+                KaleidoscopeDoll.LOGGER.error("Failed to load default custom doll model", e);
+            }
+        });
+    }
+}

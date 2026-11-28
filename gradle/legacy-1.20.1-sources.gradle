@@ -1,10 +1,31 @@
-ext.translateBeforeComponentsLine = { String line ->
+ext.translateOldResourceLocation = { String line ->
     line
         .replace('ResourceLocation.fromNamespaceAndPath(', 'new ResourceLocation(')
         .replace('ResourceLocation.tryBuild(', 'ResourceLocation.tryParse(')
         .replace('ResourceLocation.tryParse(KaleidoscopeDoll.MOD_ID, path)', 'ResourceLocation.tryParse(KaleidoscopeDoll.MOD_ID + ":" + path)')
         .replace('ResourceLocation.withDefaultNamespace(', 'new ResourceLocation(')
         .replace('ResourceLocation.parse(', 'new ResourceLocation(')
+}
+
+ext.translateLegacyVertexLine = { String line ->
+    line.replace("consumer.addVertex(", "consumer.vertex(")
+        .replace(".setColor(", ".color(")
+        .replace(".setUv(", ".uv(")
+        .replace(".setOverlay(", ".overlayCoords(")
+        .replace(".setLight(", ".uv2(")
+        .replaceAll(/\.setNormal\((.+)\);/, '.normal($1).endVertex();')
+}
+
+ext.translateBeforeComponentsLine = { String line, String version ->
+    line = translateOldResourceLocation(line)
+    if (version == "1.20.1") {
+        line = line.replaceAll(/(public (?:DollEntityCraftingRecipe|DollFunctionRecipe)\()CraftingBookCategory category\) \{ super\(category\);/, '$1net.minecraft.resources.ResourceLocation id, CraftingBookCategory category) { super(id, category);')
+    }
+    if (version != "1.20.4") {
+        line = line.replace('public BlockState playerWillDestroy(', 'public void playerWillDestroy(')
+            .replace('return super.playerWillDestroy(', 'super.playerWillDestroy(')
+    }
+    line
         .replace('software.bernie.geckolib.animation.PlayState', 'software.bernie.geckolib.core.object.PlayState')
         .replace('software.bernie.geckolib.animation.', 'software.bernie.geckolib.core.animation.')
         .replace('software.bernie.geckolib.animatable.GeoAnimatable', 'software.bernie.geckolib.core.animatable.GeoAnimatable')
@@ -24,7 +45,6 @@ ext.translateBeforeComponentsLine = { String line ->
         .replace('input.ingredientCount()', 'input.getItems().stream().filter(s -> !s.isEmpty()).count()')
         .replace('input.size()', 'input.getContainerSize()')
         .replaceAll(/assemble\(CraftingContainer input, HolderLookup\.Provider registries\)/, 'assemble(CraftingContainer input, net.minecraft.core.RegistryAccess registries)')
-        .replaceAll(/(public (?:DollEntityCraftingRecipe|DollFunctionRecipe)\()CraftingBookCategory category\) \{ super\(category\);/, '$1net.minecraft.resources.ResourceLocation id, CraftingBookCategory category) { super(id, category);')
         .replace('getUseDuration(stack, entity)', 'getUseDuration(stack)')
         .replace('getUseDuration(ItemStack stack, LivingEntity entity)', 'getUseDuration(ItemStack stack)')
         .replace('stack.consume(1, player);', 'if (!player.getAbilities().instabuild) stack.shrink(1);')
@@ -40,17 +60,15 @@ ext.translateBeforeComponentsLine = { String line ->
         .replaceAll(/(LegacyDollNbt\.(?:store|read)\(.*), registries\)/, '$1, null)')
         .replace('protected void defineSynchedData(SynchedEntityData.Builder builder)', 'protected void defineSynchedData()')
         .replaceAll(/builder\.define\((DATA_\w+|CUSTOM_DOLL_ID),/, 'getEntityData().define($1,')
-        .replace('public BlockState playerWillDestroy(', 'public void playerWillDestroy(')
-        .replace('return super.playerWillDestroy(', 'super.playerWillDestroy(')
         .replace('Items.ENDER_PEARL, Items.WIND_CHARGE, Items.TOTEM_OF_UNDYING', 'Items.ENDER_PEARL, Items.TOTEM_OF_UNDYING')
-        .replace('net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;', 'com.github.ysbbbbbb.kaleidoscopedoll.network.LegacyServerNetwork;')
+        .replace('net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;', 'com.kaleidoscopedoll.network.LegacyServerNetwork;')
         .replace('ServerPlayNetworking.', 'LegacyServerNetwork.')
-        .replace('net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;', 'com.github.ysbbbbbb.kaleidoscopedoll.network.LegacyClientNetwork;')
+        .replace('net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;', 'com.kaleidoscopedoll.network.LegacyClientNetwork;')
         .replace('ClientPlayNetworking.', 'LegacyClientNetwork.')
 }
 
-ext.translateBeforeComponentsClientPack = { String line ->
-    line
+ext.translateBeforeComponentsClientPack = { String line, String version ->
+    line = line
         .replaceAll(/import net\.minecraft\.server\.packs\.(?:PackLocationInfo|PackSelectionConfig);/, '')
         .replace('import java.util.Optional;', '')
         .replaceAll(/^\s*private static final PackSelectionConfig SELECTION = .+;$/, '')
@@ -61,9 +79,18 @@ ext.translateBeforeComponentsClientPack = { String line ->
         .replace('PackSource.BUILT_IN, Optional.empty());', '')
         .replace('Pack pack = Pack.readMetaAndCreate(info, new FilePackResources.FileResourcesSupplier(path), PackType.CLIENT_RESOURCES, SELECTION);',
                 'Pack.ResourcesSupplier resources = key -> new FilePackResources(key, path.toFile(), true);\n        Pack.Info info = Pack.readPackInfo(id, resources);\n        Pack pack = info == null ? null : Pack.create(id, Component.literal(name), true, resources, info, PackType.CLIENT_RESOURCES, Pack.Position.BOTTOM, true, PackSource.BUILT_IN);')
+    if (version != "1.20.1") {
+        line = line.replace('key -> new FilePackResources(key, path.toFile(), true)', 'new FilePackResources.FileResourcesSupplier(path, true)')
+            .replace('Pack.readPackInfo(id, resources)', 'Pack.readPackInfo(id, resources, net.minecraft.SharedConstants.getCurrentVersion().getPackVersion(PackType.CLIENT_RESOURCES))')
+            .replace('resources, info, PackType.CLIENT_RESOURCES, Pack.Position.BOTTOM', 'resources, info, Pack.Position.BOTTOM')
+    }
+    return line
 }
 
-ext.translateBeforeComponentsBlockUse = { String line ->
+ext.translateBeforeComponentsBlockUse = { String line, String version ->
+    if (version != "1.20.4") {
+        line = line.replace('getCloneItemStack(LevelReader level,', 'getCloneItemStack(net.minecraft.world.level.BlockGetter level,')
+    }
     line
         .replace('protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit)', 'public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, net.minecraft.world.InteractionHand hand, BlockHitResult hit)')
         .replace('protected InteractionResult useWithoutItem(BlockState blockState, Level level, BlockPos blockPos, Player player,', 'public InteractionResult use(BlockState blockState, Level level, BlockPos blockPos, Player player, net.minecraft.world.InteractionHand hand,')
@@ -73,5 +100,4 @@ ext.translateBeforeComponentsBlockUse = { String line ->
         .replace('super.useItemOn(itemInHand, blockstate, world, pos, entity, hand, hit)', 'super.use(blockstate, world, pos, entity, hand, hit)')
         .replace('protected RenderShape getRenderShape(', 'public RenderShape getRenderShape(')
         .replace('protected List<ItemStack> getDrops(', 'public List<ItemStack> getDrops(')
-        .replace('getCloneItemStack(LevelReader level,', 'getCloneItemStack(net.minecraft.world.level.BlockGetter level,')
 }

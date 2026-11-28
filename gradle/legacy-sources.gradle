@@ -1,41 +1,77 @@
 // Build the older mappings from the same gameplay sources. Version-specific behavior lives in src/compat.
-def target = project.legacyMinecraftTarget
+def minecraftVersion = project.legacyMinecraftTarget
+def target = project.legacySourceBaseline
 def geckoFour = target in ["1.20.1", "1.21.1", "1.21.4"]
 def preItemDefinitions = target in ["1.20.1", "1.21.1"]
 def beforeComponents = target == "1.20.1"
+def firstLegacy = minecraftVersion == "1.20.1"
+def legacyRecipeHolder = minecraftVersion in ["1.20.2", "1.20.4"]
+def beforeRecipeInput = minecraftVersion == "1.20.6"
+def lootRegistryViaGet = minecraftVersion in ["1.20.6", "1.21", "1.21.1"]
+def lootRegistryGetterType = minecraftVersion in ["1.21.4", "1.21.5"]
+def immediateGeckoFive = minecraftVersion in ["1.21.5", "1.21.8"]
+def legacyNbt = geckoFour || minecraftVersion == "1.21.5"
 def hasJei = project.legacyHasJei
-if (geckoFour) {
+if (minecraftVersion == "1.21.11") {
+    apply from: "gradle/legacy-1.21.11-sources.gradle"
+}
+if (legacyNbt || immediateGeckoFive) {
     apply from: "gradle/legacy-1.21.4-sources.gradle"
 }
 if (preItemDefinitions) {
     apply from: "gradle/legacy-1.21.1-sources.gradle"
 }
-if (beforeComponents) {
+if (beforeComponents || beforeRecipeInput) {
     apply from: "gradle/legacy-1.20.1-sources.gradle"
 }
 def sharedSources = ["main", "client"].collectEntries { side -> [(side): sourceSets[side].java.srcDirs] }
 def sourceTranslation = tasks.register("translateLegacySources", Sync) {
     inputs.file(layout.projectDirectory.file("gradle/legacy-sources.gradle"))
     inputs.property("target", target)
-    if (geckoFour) inputs.file(layout.projectDirectory.file("gradle/legacy-1.21.4-sources.gradle"))
+    inputs.property("minecraftVersion", minecraftVersion)
+    inputs.property("hasJei", hasJei)
+    if (minecraftVersion == "1.21.11") inputs.file(layout.projectDirectory.file("gradle/legacy-1.21.11-sources.gradle"))
+    if (legacyNbt || immediateGeckoFive) inputs.file(layout.projectDirectory.file("gradle/legacy-1.21.4-sources.gradle"))
     if (preItemDefinitions) inputs.file(layout.projectDirectory.file("gradle/legacy-1.21.1-sources.gradle"))
-    if (beforeComponents) inputs.file(layout.projectDirectory.file("gradle/legacy-1.20.1-sources.gradle"))
+    if (beforeComponents || beforeRecipeInput) inputs.file(layout.projectDirectory.file("gradle/legacy-1.20.1-sources.gradle"))
     sharedSources.each { side, roots ->
         roots.each { root ->
             from(root) {
                 into(side)
+                if (!hasJei) exclude "**/compat/jei/**"
+                filesMatching("**/mixin/client/MinecraftMixin.java") {
+                    filter { String line ->
+                        line.contains("reloadResourcePacks(ZLnet/minecraft/client/GameLoadCookie;") ? "" : line
+                    }
+                }
+                if (minecraftVersion == "1.21.11") {
+                    filter { String line -> translate12111Line(line) }
+                    filesMatching(["**/DollBlockRender.java", "**/CustomDollRender.java", "**/DollMachineRender.java"]) {
+                        filter { String line -> line.replaceAll(/super\((?:context|render), new AnimatedRootModel<>\(/, "super(new AnimatedRootModel<>(") }
+                    }
+                    return
+                }
+                if (preItemDefinitions) exclude "**/ClientItemInfoLoaderMixin.java"
+                filesMatching("**/ClientItemInfoLoaderMixin.java") {
+                    filter { String line -> line
+                        .replace("renderer.item.CuboidItemModelWrapper", "renderer.item.BlockModelWrapper")
+                        .replace("new CuboidItemModelWrapper.Unbaked(", "new BlockModelWrapper.Unbaked(")
+                        .replace(", Optional.empty(), List.of()", ", List.of()")
+                    }
+                }
                 exclude "**/AnimatedRootModel.java"
                 if (geckoFour) {
                     exclude "**/InterpolatingDollEntity.java"
-                    if (!hasJei) exclude "**/compat/jei/**"
-                    if (side == "client") {
+                }
+                if ((geckoFour || immediateGeckoFive) && side == "client") {
                         exclude "**/DollBlockRender.java", "**/CustomDollRender.java", "**/DollMachineRender.java", "**/DollEntityRender.java",
                                 "**/DollBlockRenderState.java", "**/DollEntityRenderState.java", "**/CustomDollRenderState.java",
                                 "**/DollBlockSubmission.java", "**/DollEntityItemModel.java", "**/CustomDollItemModel.java",
-                                "**/BlockStateGenerator.java", "**/*SpecialRenderer.java", "**/CuboidItemModelWrapperMixin.java",
+                                "**/*SpecialRenderer.java",
                                 "**/WindChargeRendererMixin.java", "**/CustomHeadLayerMixin.java"
-                    }
+                        if (geckoFour) exclude "**/BlockStateGenerator.java", "**/CuboidItemModelWrapperMixin.java"
                 }
+                if (immediateGeckoFive) exclude "**/DollBlockSubmission.java"
                 filter { String line -> line
                         .replaceAll(/\bIdentifier\b/, "ResourceLocation")
                         .replace("com.geckolib.animation.AnimationController", "software.bernie.geckolib.animatable.processing.AnimationController")
@@ -68,8 +104,8 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                         .replace("public class DollFunctionRecipe extends CustomRecipe {", "public class DollFunctionRecipe extends CustomRecipe { public DollFunctionRecipe(CraftingBookCategory category) { super(category); }")
                         .replaceAll(/new RecipeSerializer<>\(MapCodec\.unit\(new (\w+)\(\)\), StreamCodec\.unit\(new \w+\(\)\)\)/, 'new net.minecraft.world.item.crafting.CustomRecipe.Serializer<>($1::new)')
                 }
-                if (geckoFour && side == "main") {
-                    filter { String line -> translateLegacyCommonLine(translateLegacyNbtLine(line)) }
+                if (legacyNbt && side == "main") {
+                    filter { String line -> translateLegacyNbtLine(line) }
                     filesMatching("**/item/DollEntityItem.java") {
                         filter { String line -> line
                                 .replace("TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, entity.level().registryAccess());", "CompoundTag output = new CompoundTag();")
@@ -81,9 +117,58 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                         filter { String line -> line
                                 .replace("TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING,", "net.minecraft.nbt.CompoundTag output = new net.minecraft.nbt.CompoundTag();")
                                 .replace("RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));", "")
-                                .replace("output.store(NBT_DOLL_ITEMSTACK, ItemStack.CODEC, doll);", "com.github.ysbbbbbb.kaleidoscopedoll.compat.LegacyDollNbt.store(output, NBT_DOLL_ITEMSTACK, ItemStack.CODEC, doll, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));")
+                                .replace("output.store(NBT_DOLL_ITEMSTACK, ItemStack.CODEC, doll);", "com.kaleidoscopedoll.compat.LegacyDollNbt.store(output, NBT_DOLL_ITEMSTACK, ItemStack.CODEC, doll, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));")
                                 .replace("TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), blockEntityData.getUnsafe())", "blockEntityData.copyTag()")
                                 .replace("ItemStack.CODEC, registries)", "ItemStack.CODEC, level.registryAccess())")
+                        }
+                    }
+                }
+                if (geckoFour && side == "main") {
+                    filter { String line -> translateLegacyCommonLine(line) }
+                }
+                if (immediateGeckoFive && side == "main") {
+                    filter { String line -> line.replace("ClientAsset.ResourceTexture", "ClientAsset")
+                            .replace("import net.minecraft.server.players.NameAndId;", "")
+                            .replace("new NameAndId(player.getGameProfile())", "player.getGameProfile()") }
+                }
+                if (minecraftVersion == "1.21.5" && side == "main") {
+                    filter { String line -> line
+                        .replace("net.minecraft.world.level.block.entity.BlockEntity.DataComponentInput", "net.minecraft.core.component.DataComponentGetter")
+                        .replace("Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)", "source -> source.hasPermission(2)")
+                        .replace("this.builder(", "this.getOrCreateTagBuilder(")
+                        .replace("canBeCollidedWith(@Nullable Entity other)", "canBeCollidedWith()")
+                        .replaceAll(/java\.util\.Optional\.of\((input\.getCompound\(\w+\))\)\.ifPresent/, '$1.ifPresent')
+                        .replaceAll(/((?:input|entityTag)\.getString\(\w+\))/, '$1.orElse("")')
+                        .replaceAll(/(input\.get(Int|Boolean)\(\w+\))/, { _, expression, type -> expression + (type == "Int" ? ".orElse(0)" : ".orElse(false)") })
+                        .replaceAll(/(\b(?:entityTag|payload\.itemDisplay\(\))\.get)Compound\(/, '$1CompoundOrEmpty(')
+                        .replaceAll(/tag\.getFloat\(("[xyz]")\)/, 'tag.getFloatOr($1, 0)')
+                    }
+                }
+                if ((beforeComponents || lootRegistryViaGet || lootRegistryGetterType) && side == "main") {
+                    filesMatching("**/ServerCustomDollLoader.java") {
+                        filter { String line ->
+                            if (beforeComponents || beforeRecipeInput) {
+                                line = line.replace("ATTACKING_ENTITY", "KILLER_ENTITY")
+                            }
+                            if (firstLegacy && line.contains("var parsed = LootTable.DIRECT_CODEC.parse(")) {
+                                return "        return net.minecraft.world.level.storage.loot.LootDataType.TABLE.deserialize(new net.minecraft.resources.ResourceLocation(\"kaleidoscope_doll\", \"custom\"), drop.table());"
+                            }
+                            if (firstLegacy && (line.contains("parsed.error()") || line.contains("return parsed.result()"))) {
+                                return ""
+                            }
+                            if (legacyRecipeHolder) {
+                                line = line.replace("LootTable.DIRECT_CODEC.parse(RegistryOps.create(JsonOps.INSTANCE, level.getServer().reloadableRegistries().lookup()),",
+                                        "LootTable.CODEC.parse(JsonOps.INSTANCE,")
+                            }
+                            if (lootRegistryViaGet) {
+                                line = line.replace("reloadableRegistries().lookup()", "reloadableRegistries().get()")
+                            }
+                            if (lootRegistryGetterType) {
+                                // These versions return the full provider directly, but declare the narrower getter type.
+                                line = line.replace("level.getServer().reloadableRegistries().lookup()",
+                                        "(net.minecraft.core.HolderLookup.Provider) level.getServer().reloadableRegistries().lookup()")
+                            }
+                            return line
                         }
                     }
                 }
@@ -127,10 +212,10 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                         filter { String line -> line
                             .replace("import net.minecraft.world.item.component.DeathProtection;", "")
                             .replace("        if (result.is(Items.TOTEM_OF_UNDYING)) {", "        /* no component needed for vanilla totems")
-                            .replace("        result.set(DataComponents.ITEM_MODEL, BuiltInRegistries.ITEM.getKey(doll.getItem()));", "        */ result.set(com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, BuiltInRegistries.ITEM.getKey(doll.getItem()).toString());")
+                            .replace("        result.set(DataComponents.ITEM_MODEL, BuiltInRegistries.ITEM.getKey(doll.getItem()));", "        */ result.set(com.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, BuiltInRegistries.ITEM.getKey(doll.getItem()).toString());")
                             .replace("ResourceLocation model = stack.get(DataComponents.ITEM_MODEL);", "ResourceLocation model = getDollModel(stack);")
                             .replace("    public RecipeSerializer<? extends CustomRecipe> getSerializer() {", "    public boolean canCraftInDimensions(int width, int height) { return width * height >= 2; } @Override public RecipeSerializer<? extends CustomRecipe> getSerializer() {")
-                            .replace("    public static boolean isDollFunctionItem(", "    public static ResourceLocation getDollModel(ItemStack stack) { String model = stack.get(com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION); return model == null ? null : ResourceLocation.tryParse(model); } public static boolean isDollFunctionItem(")
+                            .replace("    public static boolean isDollFunctionItem(", "    public static ResourceLocation getDollModel(ItemStack stack) { String model = stack.get(com.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION); return model == null ? null : ResourceLocation.tryParse(model); } public static boolean isDollFunctionItem(")
                         }
                     }
                     filesMatching(["**/item/DollItem.java", "**/item/CustomDollItem.java"]) {
@@ -200,7 +285,7 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                         filter { String line -> line.replaceAll(/super\((context|render), new AnimatedRootModel<>\(\)\);/, "super(new AnimatedRootModel<>());") }
                     }
                     filesMatching(["**/DollBlockRenderState.java", "**/DollEntityRenderState.java", "**/CustomDollRenderState.java"]) {
-                        filter { String line -> line.replaceAll(/(class \w+ extends \w*EntityRenderState) \{/, '$1 implements com.github.ysbbbbbb.kaleidoscopedoll.render.LegacyGeoState { private final software.bernie.geckolib.renderer.base.GeoRenderState.Impl geckoState = new software.bernie.geckolib.renderer.base.GeoRenderState.Impl(); public software.bernie.geckolib.renderer.base.GeoRenderState.Impl geckoState() { return geckoState; }') }
+                        filter { String line -> line.replaceAll(/(class \w+ extends \w*EntityRenderState) \{/, '$1 implements com.kaleidoscopedoll.render.LegacyGeoState { private final software.bernie.geckolib.renderer.base.GeoRenderState.Impl geckoState = new software.bernie.geckolib.renderer.base.GeoRenderState.Impl(); public software.bernie.geckolib.renderer.base.GeoRenderState.Impl geckoState() { return geckoState; }') }
                     }
                     filesMatching("**/DollEntityRender.java") {
                         filter { String line -> line
@@ -245,15 +330,20 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                                 .replace("layer.setItemTransform(", "layer.setTransform(")
                         }
                     }
-                    filesMatching("**/mixin/client/MinecraftMixin.java") {
-                        filter { String line ->
-                            line.contains("reloadResourcePacks(ZLnet/minecraft/client/GameLoadCookie;") ? "" : line
-                        }
-                    }
                 }
-                if (geckoFour && side == "client") {
+                if ((geckoFour || immediateGeckoFive) && side == "client") {
                     filesMatching(["**/client/gui/*.java", "**/CustomDollAssets.java", "**/DollKeybinds.java", "**/LivingEntityRendererMixin.java"]) {
-                        filter { String line -> translateLegacyClientLine(line) }
+                        filter { String line ->
+                            if (immediateGeckoFive && (line.contains("new DynamicTexture") ||
+                                    (minecraftVersion == "1.21.8" && (line.contains("RenderPipelines") || line.contains("setTooltipForNextFrame"))))) {
+                                return line
+                            }
+                            line = translateLegacyClientLine(line)
+                            if (immediateGeckoFive) {
+                                line = line.replace("ItemDisplayContext.HEAD, false, entity)", "ItemDisplayContext.HEAD, entity)")
+                            }
+                            return line
+                        }
                     }
                     filesMatching("**/KaleidoscopeDollClient.java") {
                         filter { String line -> line
@@ -267,7 +357,7 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                                 .replace("submitCentered(", "renderCentered(")
                                 .replace("int light, int outline)", "int light, int overlay)")
                                 .replace("model.submit(pose, collector, light, OverlayTexture.NO_OVERLAY, outline)", "model.render(pose, collector, light, overlay)")
-                                .replace("ItemDisplayContext.NONE, client.level", "ItemDisplayContext.NONE, false, client.level")
+                                .replace("ItemDisplayContext.NONE, client.level", geckoFour ? "ItemDisplayContext.NONE, false, client.level" : "ItemDisplayContext.NONE, client.level")
                         }
                     }
                     filesMatching("**/DollPoseStack.java") {
@@ -285,16 +375,16 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                             .replaceAll(/import .*SpecialModelRenderers.*;/, "")
                             .replaceAll(/import .*Doll(?:Entity)?SpecialRenderer.*;/, "")
                             .replace("        SpecialModelRenderers.ID_MAPPER.put(", "        /* SpecialModelRenderers.ID_MAPPER.put(")
-                            .replace("        ModelLoadingPlugin.register(DollMachineRender::registerModels);", "        */ com.github.ysbbbbbb.kaleidoscopedoll.client.render.LegacyDollItems.register(); ModelLoadingPlugin.register(DollMachineRender::registerModels);")
+                            .replace("        ModelLoadingPlugin.register(DollMachineRender::registerModels);", "        */ com.kaleidoscopedoll.client.render.LegacyDollItems.register(); ModelLoadingPlugin.register(DollMachineRender::registerModels);")
                             .replace("BuiltInRegistries.ITEM.getValue(", "BuiltInRegistries.ITEM.get(")
-                            .replace("stack.get(DataComponents.ITEM_MODEL)", "com.github.ysbbbbbb.kaleidoscopedoll.item.crafting.DollFunctionRecipe.getDollModel(stack)")
+                            .replace("stack.get(DataComponents.ITEM_MODEL)", "com.kaleidoscopedoll.item.crafting.DollFunctionRecipe.getDollModel(stack)")
                         }
                     }
                 }
                 if (target == "1.21.4" && side == "main") {
                     filesMatching("**/VersionedRecipeProvider.java") {
                         filter { String line -> line.replace("VersionedRecipeProvider.this.buildRecipes(this::stonecutterResultFromBase);",
-                                "VersionedRecipeProvider.this.buildRecipes((category, result, base, count) -> net.minecraft.data.recipes.SingleItemRecipeBuilder.stonecutting(net.minecraft.world.item.crafting.Ingredient.of(base), category, result, count).unlockedBy(getHasName(base), has(base)).save(output, net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE, net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll.MOD_ID, getConversionRecipeName(result, base) + \"_stonecutting\"))));")
+                                "VersionedRecipeProvider.this.buildRecipes((category, result, base, count) -> net.minecraft.data.recipes.SingleItemRecipeBuilder.stonecutting(net.minecraft.world.item.crafting.Ingredient.of(base), category, result, count).unlockedBy(getHasName(base), has(base)).save(output, net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE, net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.kaleidoscopedoll.KaleidoscopeDoll.MOD_ID, getConversionRecipeName(result, base) + \"_stonecutting\"))));")
                         }
                     }
                 }
@@ -302,9 +392,10 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                     if (side == "main") {
                         exclude "**/NetworkHandler.java", "**/DollPackPackets.java", "**/ModDataComponent.java",
                                 "**/AbstractHurtingProjectileMixin.java", "**/AbstractWindChargeMixin.java", "**/WindChargeDollCarrier.java",
-                                "**/DollDirectionalBlock.java", "**/BlockStateBaseMixin.java"
+                                "**/BlockStateBaseMixin.java"
+                        if (minecraftVersion != "1.20.4") exclude "**/DollDirectionalBlock.java"
                         filesMatching("**/block/*.java") {
-                            filter { String line -> translateBeforeComponentsBlockUse(line) }
+                            filter { String line -> translateBeforeComponentsBlockUse(line, minecraftVersion) }
                         }
                         filesMatching("**/block/entity/CustomDollBlockEntity.java") {
                             filter { String line -> line
@@ -314,10 +405,14 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                             }
                         }
                         filesMatching("**/entity/DollEntity.java") {
-                            filter { String line -> line
-                                .replace("protected Vec3 getPassengerAttachmentPoint(Entity entity, EntityDimensions dimensions, float partialTick)", "public double getMyRidingOffset()")
-                                .replace("return new Vec3(0, 0.625, 0);", "return 0.125;")
-                                .replace("return new Vec3(0, 0.8125, 0);", "return 0.3125;")
+                            filter { String line ->
+                                if (firstLegacy) return line
+                                    .replace("protected Vec3 getPassengerAttachmentPoint(Entity entity, EntityDimensions dimensions, float partialTick)", "public double getMyRidingOffset()")
+                                    .replace("return new Vec3(0, 0.625, 0);", "return 0.125;")
+                                    .replace("return new Vec3(0, 0.8125, 0);", "return 0.3125;")
+                                return line.replace("protected Vec3 getPassengerAttachmentPoint(", "protected Vector3f getPassengerAttachmentPoint(")
+                                    .replace("return new Vec3(0, 0.625, 0);", "return new Vector3f(0, 0.625f, 0);")
+                                    .replace("return new Vec3(0, 0.8125, 0);", "return new Vector3f(0, 0.8125f, 0);")
                             }
                         }
                         filesMatching("**/block/entity/DollMachineBlockEntity.java") {
@@ -326,25 +421,42 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                         filesMatching("**/item/crafting/DollEntityCraftingRecipe.java") {
                             filter { String line -> line.replace("public DollEntityCraftingRecipe(ResourceLocation id,", "public DollEntityCraftingRecipe(net.minecraft.resources.ResourceLocation id,") }
                         }
-                        filesMatching("**/compat/jei/*RecipeMaker.java") {
-                            filter { String line -> line
-                                .replace("import net.minecraft.world.item.crafting.RecipeHolder;", "")
-                                .replace("RecipeHolder<CraftingRecipe>", "CraftingRecipe")
-                                .replace("new ShapelessRecipe(GROUP,", "new ShapelessRecipe(id, GROUP,")
-                                .replace("recipes.add(new RecipeHolder<>(id, recipe));", "recipes.add(recipe);")
+                        if (firstLegacy) {
+                            filesMatching("**/compat/jei/*RecipeMaker.java") {
+                                filter { String line -> line
+                                    .replace("import net.minecraft.world.item.crafting.RecipeHolder;", "")
+                                    .replace("RecipeHolder<CraftingRecipe>", "CraftingRecipe")
+                                    .replace("new ShapelessRecipe(GROUP,", "new ShapelessRecipe(id, GROUP,")
+                                    .replace("recipes.add(new RecipeHolder<>(id, recipe));", "recipes.add(recipe);")
+                                }
                             }
                         }
                         filesMatching(["**/datagen/AdvancementGenerator.java", "**/datagen/DollCriteria.java", "**/datagen/LootTableGenerator.java"]) {
-                            filter { String line -> line
-                                .replace("import net.minecraft.advancements.Criterion;", "import net.minecraft.advancements.CriterionTriggerInstance;")
-                                .replace("Criterion<?>", "CriterionTriggerInstance")
-                                .replace("super(output, registryLookup);", "super(output);")
-                                .replace("generateAdvancement(HolderLookup.Provider registryLookup, Consumer<AdvancementHolder> saver)", "generateAdvancement(Consumer<Advancement> saver)")
-                                .replace("AdvancementHolder", "Advancement")
-                                .replace("AdvancementRequirements.Strategy.", "RequirementsStrategy.")
-                                .replace("root ? Optional.of(BACKGROUND) : Optional.empty()", "root ? BACKGROUND : null")
-                                .replace("Optional.empty(), AdvancementType", "null, AdvancementType")
-                                .replace("AdvancementType.", "FrameType.")
+                            filter { String line ->
+                                line = line.replace("super(output, registryLookup);", "super(output);")
+                                    .replace("generateAdvancement(HolderLookup.Provider registryLookup, ", "generateAdvancement(")
+                                if (minecraftVersion != "1.20.4") {
+                                    line = line.replace("root ? Optional.of(BACKGROUND) : Optional.empty()", "root ? BACKGROUND : null")
+                                        .replace("Optional.empty(), AdvancementType", "null, AdvancementType")
+                                        .replace("AdvancementType.", "FrameType.")
+                                }
+                                if (firstLegacy) {
+                                    line = line.replace("import net.minecraft.advancements.Criterion;", "import net.minecraft.advancements.CriterionTriggerInstance;")
+                                        .replace("Criterion<?>", "CriterionTriggerInstance")
+                                        .replace("AdvancementHolder", "Advancement")
+                                        .replace("AdvancementRequirements.Strategy.", "RequirementsStrategy.")
+                                }
+                                return line
+                            }
+                        }
+                        if (minecraftVersion == "1.20.2") {
+                            filesMatching("**/PhantomSpawnEvent.java") {
+                                filter { String line -> line
+                                    .replaceAll(/import net\.fabricmc\.fabric\.api\.attachment\.v1\.\w+;/, "")
+                                    .replace("public static final AttachmentType<Boolean> ROLLED_ATTACHMENT =", "private static final String ROLLED_TAG = KaleidoscopeDoll.MOD_ID + \":phantom_doll_rolled\";")
+                                    .replaceAll(/^\s+(?:AttachmentRegistry\.createPersistent\(|ResourceLocation\.fromNamespaceAndPath\(KaleidoscopeDoll\.MOD_ID, "phantom_doll_rolled"\),|Codec\.BOOL\);)$/, "")
+                                    .replace("phantom.hasAttached(ROLLED_ATTACHMENT)", "phantom.getTags().contains(ROLLED_TAG)")
+                                    .replace("phantom.setAttached(ROLLED_ATTACHMENT, true)", "phantom.addTag(ROLLED_TAG)") }
                             }
                         }
                         filesMatching("**/item/CustomDollItem.java") {
@@ -364,50 +476,87 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                         }
                         filesMatching("**/item/crafting/DollFunctionRecipe.java") {
                             filter { String line -> line
-                                .replace("result.set(com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, ", "com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.set(result, com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, ")
-                                .replace("stack.get(com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION)", "com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.get(stack, com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION)")
+                                .replace("result.set(com.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, ", "com.kaleidoscopedoll.init.ModDataComponent.set(result, com.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, ")
+                                .replace("stack.get(com.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION)", "com.kaleidoscopedoll.init.ModDataComponent.get(stack, com.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION)")
                             }
                         }
                     } else {
-                        filesMatching(["**/ServerDollPackCache.java", "**/CustomDollConfigPackSource.java"]) {
-                            filter { String line -> translateBeforeComponentsClientPack(line) }
+                        filesMatching("**/CustomDollConfigPackSource.java") {
+                            filter { String line -> translateBeforeComponentsClientPack(line, minecraftVersion) }
                         }
-                        filesMatching("**/mixin/client/MinecraftMixin.java") {
-                            filter { String line -> line
-                                .replaceAll(/^.*reloadResourcePacks\(ZLnet\/minecraft\/client\/GameLoadCookie;.+$/, "")
-                                .replace('ZLnet/minecraft/client/Minecraft$GameLoadCookie;', "Z")
-                                .replace(", @Coerce Object cookie", "")
-                                .replace("import org.spongepowered.asm.mixin.injection.Coerce;", "")
+                        filesMatching("**/compat/DollPackResources.java") {
+                            filter { String line ->
+                                if (line.contains("private static PackLocationInfo location(")) return ""
+                                line = line
+                                    .replaceAll(/import net\.minecraft\.server\.packs\.(?:PackLocationInfo|PackSelectionConfig);/, "")
+                                    .replace("import java.util.Optional;", "")
+                                    .replace("super(location(id));", "super(id, true);")
+                                    .replace("readMetaAndCreate(location(id),", "readMetaAndCreate(id, Component.literal(id), required,")
+                                    .replace("new PackSelectionConfig(required, Pack.Position.BOTTOM, required)", "Pack.Position.BOTTOM, PackSource.BUILT_IN")
+                                    .replace("PackLocationInfo location", "String location")
+                                    .replace("Pack.Metadata metadata", "Pack.Info metadata")
+                                if (firstLegacy) {
+                                    line = line.contains(" openFull(") ? "" : line.replace(" openPrimary(", " open(")
+                                }
+                                return line
+                            }
+                        }
+                        if (firstLegacy) {
+                            filesMatching("**/mixin/client/MinecraftMixin.java") {
+                                filter { String line -> line
+                                    .replace('ZLnet/minecraft/client/Minecraft$GameLoadCookie;', "Z")
+                                    .replace(", @Coerce Object cookie", "")
+                                    .replace("import org.spongepowered.asm.mixin.injection.Coerce;", "")
+                                }
                             }
                         }
                         filesMatching("**/BedrockCube*.java") {
-                            filter { String line -> line
-                                .replace("consumer.addVertex(", "consumer.vertex(")
-                                .replace(".setColor(", ".color(")
-                                .replace(".setUv(", ".uv(")
-                                .replace(".setOverlay(", ".overlayCoords(")
-                                .replace(".setLight(", ".uv2(")
-                                .replaceAll(/\.setNormal\((.+)\);/, '.normal($1).endVertex();')
-                            }
+                            filter { String line -> translateLegacyVertexLine(line) }
                         }
-                        filesMatching("**/ComputerMenuScreen.java") {
-                            filter { String line -> line
-                                .replace("moveCursorToEnd(false)", "moveCursorToEnd()")
-                                .replace("double mouseY, double scrollX, double scrollY", "double mouseY, double scrollY")
+                        if (firstLegacy) {
+                            filesMatching("**/ComputerMenuScreen.java") {
+                                filter { String line -> line
+                                    .replace("moveCursorToEnd(false)", "moveCursorToEnd()")
+                                    .replace("double mouseY, double scrollX, double scrollY", "double mouseY, double scrollY")
+                                }
                             }
                         }
                         filesMatching("**/KaleidoscopeDollClient.java") {
                             filter { String line -> line.replace("stack, tooltipContext, tooltipDisplay, lines", "stack, tooltipFlag, lines") }
                         }
                     }
-                    filter { String line -> translateBeforeComponentsLine(line) }
+                    filter { String line -> translateBeforeComponentsLine(line, minecraftVersion) }
+                }
+                if (legacyRecipeHolder || beforeRecipeInput) {
+                    filesMatching("**/compat/jei/EntityDollSubtype.java") {
+                        filter { String line -> line.replace("ISubtypeInterpreter", "IIngredientSubtypeInterpreter")
+                            .replaceAll(/^\s*public String getLegacyStringSubtypeInfo.+@Override /, "    ")
+                            .replace("Object getSubtypeData(", "String apply(") }
+                    }
+                }
+                if (beforeRecipeInput) {
+                    filter { String line -> translateOldResourceLocation(line)
+                        .replace("net.neoforged.fml.config.ModConfig", "net.minecraftforge.fml.config.ModConfig")
+                        .replace("getUseDuration(stack, entity)", "getUseDuration(stack)")
+                        .replace("getUseDuration(ItemStack stack, LivingEntity entity)", "getUseDuration(ItemStack stack)")
+                        .replace("net.minecraft.world.item.crafting.CraftingInput", "net.minecraft.world.inventory.CraftingContainer")
+                        .replace("CraftingInput input", "CraftingContainer input")
+                        .replace("input.ingredientCount()", "input.getItems().stream().filter(s -> !s.isEmpty()).count()")
+                        .replace("input.size()", "input.getContainerSize()") }
+                    filesMatching("**/BedrockCube*.java") {
+                        filter { String line -> translateLegacyVertexLine(line) }
+                    }
                 }
             }
         }
     }
-    if (geckoFour) {
+    if (legacyNbt) {
         from("src/compat/1.21.4/main") {
             into("main")
+            if (!geckoFour) include "**/LegacyDollNbt.java"
+            if (minecraftVersion == "1.21.5") {
+                filter { String line -> line.replace("tag.contains(key, Tag.TAG_ANY_NUMERIC) ? tag.getFloat(key) : fallback", "tag.getFloatOr(key, fallback)") }
+            }
             if (preItemDefinitions) exclude "**/InterpolatingDollEntity.java"
             if (beforeComponents) {
                 filesMatching("**/LegacyDollNbt.java") {
@@ -415,6 +564,8 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                 }
             }
         }
+    }
+    if (geckoFour) {
         from("src/compat/1.21.4/client") {
             into("client")
             if (preItemDefinitions) {
@@ -424,7 +575,13 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
                     filter { String line -> line.replace("(T animatable, GeoRenderer<T> renderer)", "(T animatable)") }
                 }
             }
-            if (beforeComponents) filter { String line -> translateBeforeComponentsLine(line) }
+            if (beforeComponents) filter { String line -> translateBeforeComponentsLine(line, minecraftVersion) }
+            if (beforeRecipeInput) {
+                filter { String line -> translateOldResourceLocation(line) }
+                filesMatching("**/LegacyDollRender.java") {
+                    filter { String line -> line.replace("new AnimationState<>(animatable, 0, 0, partialTick, false), partialTick)", "new AnimationState<>(animatable, 0, 0, partialTick, false))") }
+                }
+            }
         }
     }
     if (beforeComponents) {
@@ -432,12 +589,13 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
             into("main")
             exclude "**/VersionedRecipeProvider.java", "**/WindChargeItemMixin.java"
             filesMatching("**/InterpolatingDollEntity.java") {
-                filter { String line -> line.replace("float pitch, int steps)", "float pitch, int steps, boolean teleport)")
+                filter { String line ->
+                    if (firstLegacy) line = line.replace("float pitch, int steps)", "float pitch, int steps, boolean teleport)")
                         .replace("if (steps <= 0)", "if (teleport || steps <= 0)")
-                        .replace("lerpPositionAndRotationStep(steps--, target.x, target.y, target.z, yaw, pitch);", "double alpha = 1.0 / steps--; setPos(net.minecraft.util.Mth.lerp(alpha, getX(), target.x), net.minecraft.util.Mth.lerp(alpha, getY(), target.y), net.minecraft.util.Mth.lerp(alpha, getZ(), target.z)); setRot(getYRot() + net.minecraft.util.Mth.wrapDegrees(yaw - getYRot()) * (float) alpha, net.minecraft.util.Mth.lerp((float) alpha, getXRot(), pitch));")
+                    return line.replace("lerpPositionAndRotationStep(steps--, target.x, target.y, target.z, yaw, pitch);", "double alpha = 1.0 / steps--; setPos(net.minecraft.util.Mth.lerp(alpha, getX(), target.x), net.minecraft.util.Mth.lerp(alpha, getY(), target.y), net.minecraft.util.Mth.lerp(alpha, getZ(), target.z)); setRot(getYRot() + net.minecraft.util.Mth.wrapDegrees(yaw - getYRot()) * (float) alpha, net.minecraft.util.Mth.lerp((float) alpha, getXRot(), pitch));")
                 }
             }
-            filter { String line -> translateBeforeComponentsLine(line) }
+            filter { String line -> translateBeforeComponentsLine(line, minecraftVersion) }
         }
         from("src/compat/1.21.1/client") {
             into("client")
@@ -445,12 +603,50 @@ def sourceTranslation = tasks.register("translateLegacySources", Sync) {
             filesMatching("**/CustomHeadLayerMixin.java") {
                 filter { String line -> line.replace("entity.getItemBySlot(EquipmentSlot.HEAD).get(ModDataComponent.DOLL_ON_HELMET)", "ModDataComponent.get(entity.getItemBySlot(EquipmentSlot.HEAD), ModDataComponent.DOLL_ON_HELMET)") }
             }
-            filter { String line -> translateBeforeComponentsLine(line) }
+            filter { String line -> translateBeforeComponentsLine(line, minecraftVersion) }
         }
     }
-    if (target != "1.21.4") {
-        from("src/compat/${target}/main") { into("main") }
-        from("src/compat/${target}/client") { into("client") }
+    if (immediateGeckoFive) {
+        from("src/compat/1.21.4/client") {
+            into("client")
+            include "**/DollBlockRender.java", "**/CustomDollRender.java", "**/DollEntityRender.java",
+                    "**/CustomHeadLayerMixin.java", "**/WindChargeRendererMixin.java", "**/*SpecialRenderer.java"
+            filter { String line ->
+                line = line.replace("ItemDisplayContext.GUI, false, minecraft.level", "ItemDisplayContext.GUI, minecraft.level")
+                    .replace("ItemDisplayContext.NONE, false, minecraft.level", "ItemDisplayContext.NONE, minecraft.level")
+                if (minecraftVersion == "1.21.8") {
+                    line = line.replace("    public record Unbaked()", """    @Override
+    public void getExtents(java.util.Set<org.joml.Vector3f> output) {
+        output.add(new org.joml.Vector3f(-0.5f, -0.5f, -0.5f));
+        output.add(new org.joml.Vector3f(0.5f, 0.5f, 0.5f));
+    }
+
+    public record Unbaked()""")
+                }
+                return line
+            }
+            filesMatching(["**/DollBlockRender.java", "**/CustomDollRender.java"]) {
+                filter { String line -> line.replace("int light, int overlay) {", "int light, int overlay, net.minecraft.world.phys.Vec3 cameraPosition) {") }
+            }
+        }
+        from("src/compat/1.21.5-1.21.8/client") { into("client") }
+    }
+    if (target != "1.21.4" && !immediateGeckoFive) {
+        from("src/compat/${target}/main") {
+            into("main")
+            if (minecraftVersion == "1.20.4") exclude "**/DollDirectionalBlock.java"
+            if (legacyRecipeHolder) {
+                filesMatching("**/VersionedRecipeProvider.java") {
+                    filter { String line -> line.replace("FinishedRecipe", "RecipeOutput")
+                        .replace("Consumer<RecipeOutput>", "RecipeOutput").replace("import java.util.function.Consumer;", "") }
+                }
+            }
+            if (beforeRecipeInput) filter { String line -> translateOldResourceLocation(line) }
+        }
+        from("src/compat/${target}/client") {
+            into("client")
+            if (beforeRecipeInput) filter { String line -> translateOldResourceLocation(line) }
+        }
     }
     filteringCharset = "UTF-8"
     into(layout.buildDirectory.dir("legacy-sources"))

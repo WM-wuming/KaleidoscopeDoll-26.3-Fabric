@@ -1,0 +1,17 @@
+package com.kaleidoscopedoll.command;
+
+import com.kaleidoscopedoll.KaleidoscopeDoll;
+import com.kaleidoscopedoll.command.subcommand.ReloadCommand;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+
+public final class RootCommand {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(KaleidoscopeDoll.MOD_ID)
+                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS));
+        root.then(ReloadCommand.get());
+        dispatcher.register(root);
+    }
+}

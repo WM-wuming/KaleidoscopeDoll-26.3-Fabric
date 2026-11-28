@@ -1,6 +1,6 @@
 param(
-    [string]$Source = (Join-Path $PSScriptRoot '../build/KaleidoscopeDoll-Sponsored-Custom-Dolls-26.3.zip'),
-    [string]$Output = (Join-Path $PSScriptRoot '../build/KaleidoscopeDoll-Sponsored-Config-26.3.zip'),
+    [string]$Source = (Join-Path $PSScriptRoot '../build/KaleidoscopeDoll-Sponsored-Config-26.3.zip'),
+    [string]$Output = (Join-Path $PSScriptRoot '../build/KaleidoscopeDoll-Sponsored-Config-26.3'),
     [switch]$RestoreCredits,
     [switch]$Renumber,
     [string]$CreditsCsv,
@@ -13,7 +13,6 @@ $sponsorNamespace = 'kaleidoscope_doll_sponsors'
 $sponsorAssets = "assets/$sponsorNamespace/"
 $originalReference = 'kaleidoscope_doll:block/doll/'
 $sponsorReference = "${sponsorNamespace}:block/doll/"
-$creditsDirectory = "${sponsorAssets}custom_dolls/lang"
 
 function Read-JsonEntry($Entry) {
     $reader = [IO.StreamReader]::new($Entry.Open())
@@ -21,19 +20,8 @@ function Read-JsonEntry($Entry) {
     finally { $reader.Dispose() }
 }
 
-function Write-JsonEntry($Archive, [string]$Path, $Data) {
-    $writer = [IO.StreamWriter]::new($Archive.CreateEntry($Path).Open())
-    try { $writer.WriteLine((ConvertTo-Json -InputObject $Data -Depth 100 -Compress)) }
-    finally { $writer.Dispose() }
-}
-
-function Copy-Entry($Archive, [string]$Path, $Entry) {
-    $reader = $Entry.Open()
-    try {
-        $writer = $Archive.CreateEntry($Path).Open()
-        try { $reader.CopyTo($writer) }
-        finally { $writer.Dispose() }
-    } finally { $reader.Dispose() }
+function Write-JsonFile([string]$Path, $Data) {
+    [IO.File]::WriteAllText($Path, (ConvertTo-Json -InputObject $Data -Depth 100 -Compress))
 }
 
 function Read-GitFile([string]$Path) {
@@ -43,7 +31,13 @@ function Read-GitFile([string]$Path) {
 }
 
 function Get-SponsorCredits($OriginalIds, $Ids) {
-    $source = Read-GitFile 'src/main/java/com/github/ysbbbbbb/kaleidoscopedoll/event/ModRegisterEvent.java'
+    # The upstream commit may use a different Java package layout.
+    $sourcePaths = @(git -C $PSScriptRoot ls-tree --full-tree -r --name-only $CreditsRef -- src/main/java/ |
+        Where-Object { $_ -cmatch '/kaleidoscopedoll/event/ModRegisterEvent\.java$' })
+    if ($LASTEXITCODE -ne 0 -or $sourcePaths.Count -ne 1) {
+        throw "Could not locate a unique ModRegisterEvent.java in upstream commit $CreditsRef."
+    }
+    $source = Read-GitFile $sourcePaths[0]
     $tooltipKeys = @{}
     foreach ($match in [regex]::Matches($source, 'registerSpecialTooltips\("(doll_\d+)", "([^"]+)"\)')) {
         $tooltipKeys.Add($match.Groups[1].Value, "tooltip.kaleidoscope_doll.doll.$($match.Groups[2].Value)")
@@ -75,12 +69,6 @@ function Get-SponsorCredits($OriginalIds, $Ids) {
     return $locales
 }
 
-function Write-SponsorCredits($Archive, $Credits) {
-    foreach ($entry in $Credits.GetEnumerator()) {
-        Write-JsonEntry $Archive "$creditsDirectory/$($entry.Key).json" $entry.Value
-    }
-}
-
 function Write-CreditsCsv($OriginalIds, $Ids, $Credits) {
     if (!$CreditsCsv) { return }
     for ($i = 0; $i -lt $Ids.Count; $i++) {
@@ -95,108 +83,90 @@ function Write-CreditsCsv($OriginalIds, $Ids, $Credits) {
     }
 }
 
-if (($RestoreCredits -or $Renumber) -and !$PSBoundParameters.ContainsKey('Source')) { $Source = $Output }
 $inputPath = (Resolve-Path -LiteralPath $Source).Path
 $outputPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Output)
-if ($RestoreCredits -or $Renumber) {
-    $temporaryPath = "$outputPath.$([guid]::NewGuid()).tmp"
-    try {
-        $sourceZip = [IO.Compression.ZipFile]::OpenRead($inputPath)
-        try {
-            $currentIds = Read-JsonEntry $sourceZip.GetEntry('custom_dolls.json')
-            $ids = if ($Renumber) { 1..$currentIds.Count | ForEach-Object { "java:${sponsorNamespace}:doll_$_" } } else { $currentIds }
-            $items = [ordered]@{}
-            $originalIds = @(
-                for ($i = 0; $i -lt $currentIds.Count; $i++) {
-                    if ($currentIds[$i] -cnotmatch "^java:${sponsorNamespace}:(doll_\d+)$") {
-                        throw "Invalid sponsor model ID: $($currentIds[$i])"
-                    }
-                    $entry = $sourceZip.GetEntry("${sponsorAssets}items/$($Matches[1]).json")
-                    $item = Read-JsonEntry $entry
-                    if ($item.model.model -cnotmatch ('^' + [regex]::Escape($sponsorReference) + '(doll_\d+)$')) {
-                        throw "Unexpected item model: $($currentIds[$i])"
-                    }
-                    # Internal model paths retain the upstream numbers for future credit restoration.
-                    "java:${sponsorNamespace}:$($Matches[1])"
-                    $items.Add(("${sponsorAssets}items/" + ($ids[$i] -split ':')[-1] + '.json'), $entry)
-                }
-            )
-            $credits = Get-SponsorCredits $originalIds $ids
-            $outputZip = [IO.Compression.ZipFile]::Open($temporaryPath, [IO.Compression.ZipArchiveMode]::Create)
-            try {
-                foreach ($entry in $sourceZip.Entries) {
-                    if ($entry.FullName -cin @('custom_dolls.json', "$creditsDirectory/zh_cn.json", "$creditsDirectory/en_us.json", "$creditsDirectory/ja_jp.json") -or
-                        $entry.FullName.StartsWith("${sponsorAssets}items/", [StringComparison]::Ordinal)) {
-                        continue
-                    }
-                    Copy-Entry $outputZip $entry.FullName $entry
-                }
-                Write-JsonEntry $outputZip 'custom_dolls.json' $ids
-                foreach ($entry in $items.GetEnumerator()) { Copy-Entry $outputZip $entry.Key $entry.Value }
-                Write-SponsorCredits $outputZip $credits
-            } finally { $outputZip.Dispose() }
-        } finally { $sourceZip.Dispose() }
-        [IO.File]::Move($temporaryPath, $outputPath, $true)
-    } finally { [IO.File]::Delete($temporaryPath) }
-    if ($CreditsCsv) { Write-CreditsCsv $originalIds $ids $credits | Export-Csv -LiteralPath $CreditsCsv -NoTypeInformation -Encoding utf8BOM }
-    Get-Item -LiteralPath $outputPath | Select-Object FullName,Length
-    return
-}
-
-if ([string]::Equals($inputPath, $outputPath, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'The config output must not overwrite the source pack.'
-}
+if (Test-Path -LiteralPath $outputPath) { throw "The output already exists: $outputPath" }
 $sourceZip = [IO.Compression.ZipFile]::OpenRead($inputPath)
 try {
     $metadata = Read-JsonEntry $sourceZip.GetEntry('pack.mcmeta')
     $metadata.pack.description = 'Kaleidoscope Doll: Sponsored Custom Doll Config (26.3)'
-    $originalIds = Read-JsonEntry $sourceZip.GetEntry("data/$sponsorNamespace/custom_dolls.json")
-    $ids = @(1..$originalIds.Count | ForEach-Object { "java:${sponsorNamespace}:doll_$_" })
-    $credits = Get-SponsorCredits $originalIds $ids
-
+    $assetRoot = $sponsorAssets
+    $modelEntries = @($sourceZip.Entries | Where-Object { $_.FullName -cmatch "^${assetRoot}models/block/doll/doll_\d+\.json$" })
+    if (!$modelEntries.Count) {
+        $assetRoot = $sourceAssets
+        $modelEntries = @($sourceZip.Entries | Where-Object { $_.FullName -cmatch "^${assetRoot}models/block/doll/doll_\d+\.json$" })
+    }
+    if ($modelEntries.Count -ne 634) { throw 'Expected 634 sponsor model files.' }
+    $modelEntries = @($modelEntries | Sort-Object { [int]([IO.Path]::GetFileNameWithoutExtension($_.Name) -replace '^doll_') })
+    $originalIds = @($modelEntries | ForEach-Object { "java:${sponsorNamespace}:$([IO.Path]::GetFileNameWithoutExtension($_.Name))" })
+    $ids = if ($Renumber) { @(1..$modelEntries.Count | ForEach-Object { "java:${sponsorNamespace}:doll_$_" }) } else { $originalIds }
+    $textureEntries = @($sourceZip.Entries | Where-Object { $_.FullName -cmatch "^${assetRoot}textures/block/doll/[a-z0-9_.-]+\.png(?:\.mcmeta)?$" })
+    $credits = [ordered]@{}
+    if ($RestoreCredits -or $Renumber -or $CreditsCsv) {
+        $credits = Get-SponsorCredits $originalIds $ids
+    } else {
+        foreach ($locale in 'zh_cn', 'en_us', 'ja_jp') {
+            $entry = $sourceZip.GetEntry("${sponsorAssets}custom_dolls/lang/$locale.json")
+            if ($entry) { $credits.Add($locale, (Read-JsonEntry $entry)) }
+        }
+        if (!$credits.Count) { $credits = Get-SponsorCredits $originalIds $ids }
+    }
     $models = [ordered]@{}
-    $items = [ordered]@{}
-    $textures = @($sourceZip.Entries | Where-Object { $_.FullName -match "^${sourceAssets}textures/block/doll/.+\.png(?:\.mcmeta)?$" })
-    for ($i = 0; $i -lt $originalIds.Count; $i++) {
-        $id = $originalIds[$i]
-        if ($id -notmatch "^java:${sponsorNamespace}:(doll_\d+)$") { throw "Invalid sponsor model ID: $id" }
-        $doll = $Matches[1]
-        $itemPath = "${sponsorAssets}items/$doll.json"
-        $item = Read-JsonEntry $sourceZip.GetEntry($itemPath)
-        if ($item.model.model -cne "$originalReference$doll") { throw "Unexpected item model: $id" }
-        $item.model.model = "$sponsorReference$doll"
-        $items.Add(("${sponsorAssets}items/" + ($ids[$i] -split ':')[-1] + '.json'), $item)
-
-        $modelPath = "models/block/doll/$doll.json"
-        $model = Read-JsonEntry $sourceZip.GetEntry("$sourceAssets$modelPath")
+    $nameMap = @{}
+    for ($i = 0; $i -lt $modelEntries.Count; $i++) {
+        $nameMap.Add(($originalIds[$i] -split ':')[-1], ($ids[$i] -split ':')[-1])
+    }
+    foreach ($entry in $modelEntries) {
+        $model = Read-JsonEntry $entry
+        $name = $nameMap[[IO.Path]::GetFileNameWithoutExtension($entry.Name)]
+        if ($model.parent -cmatch '^(?:kaleidoscope_doll|kaleidoscope_doll_sponsors):block/doll/(doll_\d+)$' -and $nameMap.ContainsKey($Matches[1])) {
+            $model.parent = "$sponsorReference$($nameMap[$Matches[1]])"
+        }
         foreach ($key in @($model.textures.Keys)) {
             $reference = $model.textures[$key]
-            if (!$reference.StartsWith($originalReference, [StringComparison]::Ordinal)) { continue }
+            if (!$reference -or !$reference.StartsWith($originalReference, [StringComparison]::Ordinal)) { continue }
             $texturePath = $reference.Substring($reference.IndexOf(':') + 1)
-            if ($null -eq $sourceZip.GetEntry("${sourceAssets}textures/$texturePath.png")) {
-                throw "Missing source texture $reference for $id"
+            if (!$sourceZip.GetEntry("${assetRoot}textures/$texturePath.png")) {
+                throw "Missing source texture $reference for $name"
             }
             $model.textures[$key] = "${sponsorNamespace}:$texturePath"
         }
-        $models.Add("$sponsorAssets$modelPath", $model)
+        $models.Add("$name.json", $model)
     }
 
-    $temporaryPath = "$outputPath.$([guid]::NewGuid()).tmp"
+    $stage = "$outputPath.$([guid]::NewGuid()).tmp"
+    $stagedFiles = [Collections.Generic.List[string]]::new()
     try {
-        $outputZip = [IO.Compression.ZipFile]::Open($temporaryPath, [IO.Compression.ZipArchiveMode]::Create)
-        try {
-            Write-JsonEntry $outputZip 'pack.mcmeta' $metadata
-            Write-JsonEntry $outputZip 'custom_dolls.json' $ids
-            foreach ($entry in $items.GetEnumerator()) { Write-JsonEntry $outputZip $entry.Key $entry.Value }
-            foreach ($entry in $models.GetEnumerator()) { Write-JsonEntry $outputZip $entry.Key $entry.Value }
-            foreach ($entry in $textures) {
-                Copy-Entry $outputZip ($sponsorAssets + $entry.FullName.Substring($sourceAssets.Length)) $entry
+        foreach ($kind in 'models', 'textures', 'lang') { [void][IO.Directory]::CreateDirectory("$stage/custom_dolls/$kind") }
+        $stagedFiles.Add("$stage/pack.mcmeta")
+        Write-JsonFile "$stage/pack.mcmeta" $metadata
+        foreach ($entry in $models.GetEnumerator()) {
+            $file = "$stage/custom_dolls/models/$($entry.Key)"
+            $stagedFiles.Add($file)
+            Write-JsonFile $file $entry.Value
+        }
+        foreach ($entry in $textureEntries) {
+            $file = "$stage/custom_dolls/textures/$($entry.Name)"
+            $stagedFiles.Add($file)
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $file)
+        }
+        foreach ($entry in $credits.GetEnumerator()) {
+            $file = "$stage/custom_dolls/lang/$($entry.Key).json"
+            $stagedFiles.Add($file)
+            Write-JsonFile $file $entry.Value
+        }
+        [IO.Directory]::Move($stage, $outputPath)
+    } finally {
+        if ([IO.Directory]::Exists($stage)) {
+            foreach ($file in $stagedFiles) { [IO.File]::Delete($file) }
+            foreach ($kind in 'models', 'textures', 'lang', '') {
+                $directory = "$stage/custom_dolls/$kind"
+                if ([IO.Directory]::Exists($directory)) { [IO.Directory]::Delete($directory) }
             }
-            Write-SponsorCredits $outputZip $credits
-        } finally { $outputZip.Dispose() }
-        [IO.File]::Move($temporaryPath, $outputPath, $true)
-    } finally { [IO.File]::Delete($temporaryPath) }
+            [IO.Directory]::Delete($stage)
+        }
+    }
 } finally { $sourceZip.Dispose() }
 
 if ($CreditsCsv) { Write-CreditsCsv $originalIds $ids $credits | Export-Csv -LiteralPath $CreditsCsv -NoTypeInformation -Encoding utf8BOM }
-Get-Item -LiteralPath $outputPath | Select-Object FullName,Length
+Get-Item -LiteralPath $outputPath | Select-Object FullName

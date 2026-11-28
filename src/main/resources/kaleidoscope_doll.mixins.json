@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "com.github.ysbbbbbb.kaleidoscopedoll.mixin",
+  "package": "com.kaleidoscopedoll.mixin",
   "compatibilityLevel": "JAVA_21",
   "minVersion": "0.8",
   "mixins": [
@@ -14,6 +14,7 @@
     "WindChargeItemMixin"
   ],
   "client": [
+    "client.ClientItemInfoLoaderMixin",
     "client.ClientPackSourceMixin",
     "client.MinecraftMixin",
     "client.EntityRenderStateMixin",

@@ -25,15 +25,36 @@ jobs:
           - minecraft: '1.20.1'
             target_java: '17'
             output: build/minecraft-1.20.1/libs
+          - minecraft: '1.20.2'
+            target_java: '17'
+            output: build/minecraft-1.20.2/libs
+          - minecraft: '1.20.4'
+            target_java: '17'
+            output: build/minecraft-1.20.4/libs
+          - minecraft: '1.20.6'
+            target_java: '21'
+            output: build/minecraft-1.20.6/libs
+          - minecraft: '1.21'
+            target_java: '21'
+            output: build/minecraft-1.21/libs
           - minecraft: '1.21.1'
             target_java: '21'
             output: build/minecraft-1.21.1/libs
           - minecraft: '1.21.4'
             target_java: '21'
             output: build/minecraft-1.21.4/libs
+          - minecraft: '1.21.5'
+            target_java: '21'
+            output: build/minecraft-1.21.5/libs
+          - minecraft: '1.21.8'
+            target_java: '21'
+            output: build/minecraft-1.21.8/libs
           - minecraft: '1.21.10'
             target_java: '21'
             output: build/minecraft-1.21.10/libs
+          - minecraft: '1.21.11'
+            target_java: '21'
+            output: build/minecraft-1.21.11/libs
           - minecraft: '26.1'
             target_java: '25'
             output: build/minecraft-26.1/libs
