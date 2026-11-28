@@ -166,4 +166,4 @@ jobs:
           done
 
           gh release create "$tag" "${jars[@]}" \
-            --target "$GITHUB_SHA" --title "Kaleidoscope Doll $version" --generate-notes
+            --target "$GITHUB_SHA" --title "$version" --generate-notes
