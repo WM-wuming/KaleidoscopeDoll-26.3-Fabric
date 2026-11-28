@@ -1,6 +1,7 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.client.gui;
 
 import com.github.ysbbbbbb.kaleidoscopedoll.entity.DollEntity;
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollKeybinds;
 import com.github.ysbbbbbb.kaleidoscopedoll.network.NetworkHandler;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
@@ -283,11 +284,11 @@ public class TweaksToolScreen extends Screen {
     }
 
     private static boolean hasShiftDown() {
-        return InputConstants.isKeyDown(InputConstants.KEY_LSHIFT) || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
+        return DollKeybinds.isDown(InputConstants.KEY_LSHIFT) || DollKeybinds.isDown(InputConstants.KEY_RSHIFT);
     }
 
     private static boolean hasControlDown() {
-        return InputConstants.isKeyDown(InputConstants.KEY_LCONTROL) || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
+        return DollKeybinds.isDown(InputConstants.KEY_LCONTROL) || DollKeybinds.isDown(InputConstants.KEY_RCONTROL);
     }
 
     private CompoundTag writeVector3f(Vector3f vector) {

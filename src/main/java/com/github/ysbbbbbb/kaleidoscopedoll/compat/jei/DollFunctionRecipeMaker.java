@@ -50,7 +50,7 @@ public class DollFunctionRecipeMaker {
                         GROUP + "." + key.getPath() + "." + sourceId.getPath());
                 ShapelessRecipe recipe = new ShapelessRecipe(new Recipe.CommonInfo(true),
                         new CraftingRecipe.CraftingBookInfo(CraftingBookCategory.MISC, GROUP),
-                        ItemStackTemplate.fromStack(output),
+                        ItemStackTemplate.fromNonEmptyStack(output),
                         List.of(inputDoll, inputSource));
                 recipes.add(new RecipeHolder<>(ResourceKey.create(Registries.RECIPE, id), recipe));
             }

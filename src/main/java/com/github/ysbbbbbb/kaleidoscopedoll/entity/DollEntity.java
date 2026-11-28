@@ -31,8 +31,6 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.InterpolationHandler;
-import net.minecraft.world.entity.LinearInterpolationHandler;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.monster.Phantom;
@@ -50,7 +48,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
-public class DollEntity extends Entity implements GeoEntity {
+public class DollEntity extends InterpolatingDollEntity implements GeoEntity {
     private static final EntityDataAccessor<BlockState> DATA_BLOCK_STATE = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.BLOCK_STATE);
     private static final EntityDataAccessor<Vector3fc> DATA_SCALE = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
     private static final EntityDataAccessor<Vector3fc> DATA_TRANSLATION = SynchedEntityData.defineId(DollEntity.class, EntityDataSerializers.VECTOR3);
@@ -106,11 +104,6 @@ public class DollEntity extends Entity implements GeoEntity {
         this(ModEntities.DOLL, level);
         this.setPos(x, y, z);
         this.setYRot(yaw);
-    }
-
-    @Override
-    protected InterpolationHandler createInterpolationHandler() {
-        return LinearInterpolationHandler.create(this);
     }
 
     @Override

@@ -1,0 +1,462 @@
+// Build the older mappings from the same gameplay sources. Version-specific behavior lives in src/compat.
+def target = project.legacyMinecraftTarget
+def geckoFour = target in ["1.20.1", "1.21.1", "1.21.4"]
+def preItemDefinitions = target in ["1.20.1", "1.21.1"]
+def beforeComponents = target == "1.20.1"
+def hasJei = project.legacyHasJei
+if (geckoFour) {
+    apply from: "gradle/legacy-1.21.4-sources.gradle"
+}
+if (preItemDefinitions) {
+    apply from: "gradle/legacy-1.21.1-sources.gradle"
+}
+if (beforeComponents) {
+    apply from: "gradle/legacy-1.20.1-sources.gradle"
+}
+def sharedSources = ["main", "client"].collectEntries { side -> [(side): sourceSets[side].java.srcDirs] }
+def sourceTranslation = tasks.register("translateLegacySources", Sync) {
+    inputs.file(layout.projectDirectory.file("gradle/legacy-sources.gradle"))
+    inputs.property("target", target)
+    if (geckoFour) inputs.file(layout.projectDirectory.file("gradle/legacy-1.21.4-sources.gradle"))
+    if (preItemDefinitions) inputs.file(layout.projectDirectory.file("gradle/legacy-1.21.1-sources.gradle"))
+    if (beforeComponents) inputs.file(layout.projectDirectory.file("gradle/legacy-1.20.1-sources.gradle"))
+    sharedSources.each { side, roots ->
+        roots.each { root ->
+            from(root) {
+                into(side)
+                exclude "**/AnimatedRootModel.java"
+                if (geckoFour) {
+                    exclude "**/InterpolatingDollEntity.java"
+                    if (!hasJei) exclude "**/compat/jei/**"
+                    if (side == "client") {
+                        exclude "**/DollBlockRender.java", "**/CustomDollRender.java", "**/DollMachineRender.java", "**/DollEntityRender.java",
+                                "**/DollBlockRenderState.java", "**/DollEntityRenderState.java", "**/CustomDollRenderState.java",
+                                "**/DollBlockSubmission.java", "**/DollEntityItemModel.java", "**/CustomDollItemModel.java",
+                                "**/BlockStateGenerator.java", "**/*SpecialRenderer.java", "**/CuboidItemModelWrapperMixin.java",
+                                "**/WindChargeRendererMixin.java", "**/CustomHeadLayerMixin.java"
+                    }
+                }
+                filter { String line -> line
+                        .replaceAll(/\bIdentifier\b/, "ResourceLocation")
+                        .replace("com.geckolib.animation.AnimationController", "software.bernie.geckolib.animatable.processing.AnimationController")
+                        .replace("com.geckolib.animation.object.PlayState", "software.bernie.geckolib.animation.PlayState")
+                        .replace("com.geckolib", "software.bernie.geckolib")
+                        .replace("net.minecraft.advancements.criterion.", "net.minecraft.advancements.critereon.")
+                        .replace("net.minecraft.world.level.gamerules.GameRules", "net.minecraft.world.level.GameRules")
+                        .replace("net.minecraft.world.entity.projectile.hurtingprojectile.", "net.minecraft.world.entity.projectile.")
+                        .replace("net.minecraft.world.entity.projectile.throwableitemprojectile.", "net.minecraft.world.entity.projectile.")
+                        .replace("FabricPackOutput", "FabricDataOutput")
+                        .replace("FabricTagsProvider", "FabricTagProvider")
+                        .replace("FabricBlockLootSubProvider", "FabricBlockLootTableProvider")
+                        .replace("net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab", "net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup")
+                        .replace("FabricCreativeModeTab.builder()", "FabricItemGroup.builder()")
+                        .replace("PayloadTypeRegistry.serverboundPlay()", "PayloadTypeRegistry.playC2S()")
+                        .replace("PayloadTypeRegistry.clientboundPlay()", "PayloadTypeRegistry.playS2C()")
+                        .replace("import net.minecraft.world.item.ItemStackTemplate;", "import net.minecraft.world.item.ItemStack;")
+                        .replace("ItemStackTemplate", "ItemStack")
+                        .replace("new ShapelessRecipe(new Recipe.CommonInfo(true),", "new ShapelessRecipe(GROUP,")
+                        .replace("new CraftingRecipe.CraftingBookInfo(CraftingBookCategory.MISC, GROUP),", "CraftingBookCategory.MISC,")
+                        .replace("ItemStack.fromNonEmptyStack(output)", "output")
+                        .replace("EntityDataAccessor<Vector3fc>", "EntityDataAccessor<Vector3f>")
+                        .replaceAll(/(\.set\(DATA_[A-Z_]+, )(\w+)(, true\))/, '$1new Vector3f($2)$3')
+                        .replace("this.updateFluidInteraction()", "this.updateInWaterStateAndDoFluidPushing()")
+                        .replace("interact(Player player, InteractionHand hand, Vec3 location)", "interactAt(Player player, Vec3 location, InteractionHand hand)")
+                        .replace("getGameRules().get(GameRules.ENTITY_DROPS)", "getGameRules().getBoolean(GameRules.RULE_DOENTITYDROPS)")
+                        .replace("import net.minecraft.world.item.crafting.CustomRecipe;", "import net.minecraft.core.HolderLookup; import net.minecraft.world.item.crafting.CraftingBookCategory; import net.minecraft.world.item.crafting.CustomRecipe;")
+                        .replace("assemble(CraftingInput input)", "assemble(CraftingInput input, HolderLookup.Provider registries)")
+                        .replace("public DollEntityCraftingRecipe() {", "public DollEntityCraftingRecipe(CraftingBookCategory category) { super(category);")
+                        .replace("public class DollFunctionRecipe extends CustomRecipe {", "public class DollFunctionRecipe extends CustomRecipe { public DollFunctionRecipe(CraftingBookCategory category) { super(category); }")
+                        .replaceAll(/new RecipeSerializer<>\(MapCodec\.unit\(new (\w+)\(\)\), StreamCodec\.unit\(new \w+\(\)\)\)/, 'new net.minecraft.world.item.crafting.CustomRecipe.Serializer<>($1::new)')
+                }
+                if (geckoFour && side == "main") {
+                    filter { String line -> translateLegacyCommonLine(translateLegacyNbtLine(line)) }
+                    filesMatching("**/item/DollEntityItem.java") {
+                        filter { String line -> line
+                                .replace("TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, entity.level().registryAccess());", "CompoundTag output = new CompoundTag();")
+                                .replace("CompoundTag entityTag = output.buildResult();", "CompoundTag entityTag = output;")
+                                .replace("entity.load(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), entityTag));", "entity.load(entityTag);")
+                        }
+                    }
+                    filesMatching("**/item/GiftBoxItem.java") {
+                        filter { String line -> line
+                                .replace("TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING,", "net.minecraft.nbt.CompoundTag output = new net.minecraft.nbt.CompoundTag();")
+                                .replace("RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));", "")
+                                .replace("output.store(NBT_DOLL_ITEMSTACK, ItemStack.CODEC, doll);", "com.github.ysbbbbbb.kaleidoscopedoll.compat.LegacyDollNbt.store(output, NBT_DOLL_ITEMSTACK, ItemStack.CODEC, doll, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));")
+                                .replace("TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), blockEntityData.getUnsafe())", "blockEntityData.copyTag()")
+                                .replace("ItemStack.CODEC, registries)", "ItemStack.CODEC, level.registryAccess())")
+                        }
+                    }
+                }
+                if (preItemDefinitions && side == "main") {
+                    exclude "**/VersionedRecipeProvider.java", "**/LivingEntityMixin.java", "**/WindChargeItemMixin.java"
+                    filter { String line -> translatePreItemDefinitionLine(line) }
+                    filesMatching("**/DollMachineBlock.java") {
+                        filter { String line -> line
+                            .replace("protected InteractionResult useItemOn(", "protected net.minecraft.world.ItemInteractionResult useItemOn(")
+                            .replace("return InteractionResult.PASS;", "return net.minecraft.world.ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;")
+                            .replace("return InteractionResult.SUCCESS;", "return net.minecraft.world.ItemInteractionResult.sidedSuccess(world.isClientSide());")
+                        }
+                    }
+                    filesMatching("**/item/DollEntityItem.java") {
+                        filter { String line -> translateLegacyItemUse(line, false) }
+                    }
+                    filesMatching("**/item/GiftBoxItem.java") {
+                        filter { String line -> translateLegacyItemUse(line, true) }
+                    }
+                    filesMatching("**/entity/DollEntity.java") {
+                        filter { String line -> line
+                            .replace("public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {", "public boolean hurt(DamageSource source, float amount) { if (!(level() instanceof ServerLevel level)) return false;")
+                            .replace("isInvulnerableToBase(source)", "isInvulnerableTo(source)")
+                            .replace("kill(level)", "kill()")
+                            .replace("spawnAtLocation(level, ", "spawnAtLocation(")
+                        }
+                    }
+                    filesMatching("**/inventory/ComputerMenu.java") {
+                        filter { String line -> line
+                            .replace("public @Nullable ResourceLocation getNoItemIcon()", "public @Nullable com.mojang.datafixers.util.Pair<ResourceLocation, ResourceLocation> getNoItemIcon()")
+                            .replace("return OUTPUT_SLOT;", "return com.mojang.datafixers.util.Pair.of(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS, OUTPUT_SLOT);")
+                        }
+                    }
+                    filesMatching("**/mixin/BlockStateBaseMixin.java") {
+                        filter { String line -> line
+                            .replace("CallbackInfoReturnable<InteractionResult>", "CallbackInfoReturnable<net.minecraft.world.ItemInteractionResult>")
+                            .replace("callback.setReturnValue(InteractionResult.PASS);", "callback.setReturnValue(net.minecraft.world.ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION);")
+                        }
+                    }
+                    filesMatching("**/item/crafting/*.java") {
+                        filter { String line -> line
+                            .replace("import net.minecraft.world.item.component.DeathProtection;", "")
+                            .replace("        if (result.is(Items.TOTEM_OF_UNDYING)) {", "        /* no component needed for vanilla totems")
+                            .replace("        result.set(DataComponents.ITEM_MODEL, BuiltInRegistries.ITEM.getKey(doll.getItem()));", "        */ result.set(com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, BuiltInRegistries.ITEM.getKey(doll.getItem()).toString());")
+                            .replace("ResourceLocation model = stack.get(DataComponents.ITEM_MODEL);", "ResourceLocation model = getDollModel(stack);")
+                            .replace("    public RecipeSerializer<? extends CustomRecipe> getSerializer() {", "    public boolean canCraftInDimensions(int width, int height) { return width * height >= 2; } @Override public RecipeSerializer<? extends CustomRecipe> getSerializer() {")
+                            .replace("    public static boolean isDollFunctionItem(", "    public static ResourceLocation getDollModel(ItemStack stack) { String model = stack.get(com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION); return model == null ? null : ResourceLocation.tryParse(model); } public static boolean isDollFunctionItem(")
+                        }
+                    }
+                    filesMatching(["**/item/DollItem.java", "**/item/CustomDollItem.java"]) {
+                        filter { String line -> line.replace(" extends BlockItem {", """ extends BlockItem implements net.minecraft.world.item.Equipable {
+    @Override
+    public net.minecraft.world.entity.EquipmentSlot getEquipmentSlot() {
+        return net.minecraft.world.entity.EquipmentSlot.HEAD;
+    }
+
+    @Override
+    public net.minecraft.world.InteractionResultHolder<ItemStack> use(net.minecraft.world.level.Level level,
+            net.minecraft.world.entity.player.Player player, net.minecraft.world.InteractionHand hand) {
+        return swapWithEquipmentSlot(this, level, player, hand);
+    }
+""") }
+                    }
+                    filesMatching("**/init/ModDataComponent.java") {
+                        filter { String line -> line.replace("private static final DataComponentType<String> LEGACY_DOLL_FUNCTION", "public static final DataComponentType<String> LEGACY_DOLL_FUNCTION") }
+                    }
+                    filesMatching(["**/compat/jei/*RecipeMaker.java", "**/compat/jei/EntityDollSubtype.java"]) {
+                        filter { String line -> line
+                            .replace("List.of(inputDoll, inputSource)", "net.minecraft.core.NonNullList.of(Ingredient.EMPTY, inputDoll, inputSource)")
+                            .replace("List<Ingredient> inputs = List.of(inputDoll, slimeBall)", "net.minecraft.core.NonNullList<Ingredient> inputs = net.minecraft.core.NonNullList.of(Ingredient.EMPTY, inputDoll, slimeBall)")
+                            .replaceAll(/ResourceKey\.create\((?:net\.minecraft\.core\.registries\.)?Registries\.RECIPE, id\)/, "id")
+                            .replace("    public Object getSubtypeData(ItemStack itemStack, UidContext context) {", "    public String getLegacyStringSubtypeInfo(ItemStack stack, UidContext context) { return getSubtypeData(stack, context).toString(); } @Override public Object getSubtypeData(ItemStack itemStack, UidContext context) {")
+                        }
+                    }
+                }
+                if (side == "client") {
+                    filter { String line -> line
+                            .replace("net.minecraft.client.renderer.rendertype.RenderTypes", "net.minecraft.client.renderer.RenderType")
+                            .replace("RenderTypes.", "RenderType.")
+                            .replace("net.minecraft.client.renderer.state.level.", "net.minecraft.client.renderer.state.")
+                            .replace("net.minecraft.client.renderer.block.dispatch.", "net.minecraft.client.renderer.block.model.")
+                            .replace("org.jspecify.annotations.Nullable", "org.jetbrains.annotations.Nullable")
+                            .replace("import net.minecraft.util.LightCoordsUtil;", "import net.minecraft.client.renderer.LightTexture;")
+                            .replace("LightCoordsUtil.pack", "LightTexture.pack")
+                            .replace("import software.bernie.geckolib.renderer.base.RenderPassInfo;", "")
+                            .replaceAll(/(\w*ovingBlockRenderState)\.cardinalLighting = clientLevel\.cardinalLighting\(\);/, '$1.level = clientLevel;')
+                            .replaceAll(/^\s*.*movingBlockRenderState\.lightEngine = clientLevel\.getLightEngine\(\);$/, "")
+                    }
+                    filesMatching("**/client/gui/*.java") {
+                        filter { String line -> line
+                                .replace("GuiGraphicsExtractor", "GuiGraphics")
+                                .replace("extractWidgetRenderState(", "renderWidget(")
+                                .replace("graphics.item(", "graphics.renderItem(")
+                                .replace("graphics.text(", "graphics.drawString(")
+                                .replace("graphics.centeredText(", "graphics.drawCenteredString(")
+                                .replaceAll(/extractRenderState\((GuiGraphics graphics|graphics),/, 'render($1,')
+                                .replace("extractLabels(", "renderLabels(")
+                                .replace("public void extractBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick)", "protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY)")
+                                .replace("super.extractBackground(graphics, mouseX, mouseY, partialTick);", "")
+                                .replace("super(screenContainer, inv, titleIn, 176, 208);", "super(screenContainer, inv, titleIn); this.imageWidth = 176; this.imageHeight = 208;")
+                                .replace("void resize(int width, int height)", "void resize(Minecraft minecraft, int width, int height)")
+                                .replace("super.resize(width, height)", "super.resize(minecraft, width, height)")
+                        }
+                    }
+                    filesMatching("**/*SpecialRenderer.java") {
+                        filter { String line -> line
+                                .replace("SpecialModelRenderer.Unbaked<ItemStack>", "SpecialModelRenderer.Unbaked")
+                                .replace("Consumer<Vector3fc> output", "java.util.Set<Vector3f> output")
+                                .replace("output.accept(new Vector3f", "output.add(new Vector3f")
+                                .replaceAll(/void submit\(@Nullable ItemStack (\w+), PoseStack/, 'void submit(@Nullable ItemStack $1, net.minecraft.world.item.ItemDisplayContext displayContext, PoseStack')
+                        }
+                    }
+                    filesMatching(["**/DollBlockRender.java", "**/CustomDollRender.java"]) {
+                        filter { String line -> line.replaceAll(/super\((context|render), new AnimatedRootModel<>\(\)\);/, "super(new AnimatedRootModel<>());") }
+                    }
+                    filesMatching(["**/DollBlockRenderState.java", "**/DollEntityRenderState.java", "**/CustomDollRenderState.java"]) {
+                        filter { String line -> line.replaceAll(/(class \w+ extends \w*EntityRenderState) \{/, '$1 implements com.github.ysbbbbbb.kaleidoscopedoll.render.LegacyGeoState { private final software.bernie.geckolib.renderer.base.GeoRenderState.Impl geckoState = new software.bernie.geckolib.renderer.base.GeoRenderState.Impl(); public software.bernie.geckolib.renderer.base.GeoRenderState.Impl geckoState() { return geckoState; }') }
+                    }
+                    filesMatching("**/DollEntityRender.java") {
+                        filter { String line -> line
+                                .replace("RenderPassInfo<DollEntityRenderState> animationPass = AnimatedRootModel.apply", "AnimatedRootModel.apply")
+                                .replace("super.postRenderPass(animationPass, submitNodeCollector);", "super.renderFinal(state, poseStack, getGeoModel().getBakedModel(getGeoModel().getModelResource(state)), submitNodeCollector, camera, state.lightCoords, OverlayTexture.NO_OVERLAY, -1);")
+                        }
+                    }
+                    filesMatching("**/DollMachineRender.java") {
+                        filter { String line -> line
+                                .replace("BlockStateModelPart", "BlockStateModel")
+                                .replace("List<List<BlockStateModel>>", "List<BlockStateModel>")
+                                .replace("ExtraModelKey<List<BlockStateModel>> SHELL", "ExtraModelKey<BlockStateModel> SHELL")
+                                .replace("List<BlockStateModel> part", "BlockStateModel part")
+                                .replace("UnbakedExtraModel<List<BlockStateModel>>", "UnbakedExtraModel<BlockStateModel>")
+                                .replaceAll(/^        public List<BlockStateModel> bake/, "        public BlockStateModel bake")
+                                .replace("return List.of(variant.bake(baker));", "return new net.minecraft.client.renderer.block.model.SingleVariant(variant.bake(baker));")
+                                .replace("RenderType.cutoutMovingBlock(), part, NO_TINTS", "net.minecraft.client.renderer.Sheets.cutoutBlockSheet(), part, 1f, 1f, 1f")
+                                .replace('super(context, new AnimatedRootModel<>("doll_machine"));', 'super(new AnimatedRootModel<>("doll_machine"));')
+                                .replace("var pass = RenderPassInfo.create(this, state, pose, camera, false);", "")
+                                .replace("pass.renderPosed(() -> {", "AnimatedRootModel.withAnimation(this, state, model -> {")
+                                .replace("pass.model().getBone", "model.getBone")
+                                .replace("var roll = bone.frameSnapshot;", "var roll = bone;")
+                                .replace(".map(bone -> bone.frameSnapshot)", "")
+                                .replace("clock.getTranslateX()", "clock.getPosX()")
+                        }
+                    }
+                    filesMatching("**/BlockStateGenerator.java") {
+                        filter { String line -> line
+                                .replace("BlockModelGenerators.variant(new Variant(location))", "BlockModelGenerators.plainVariant(location)")
+                                .replace('BlockModelGenerators.variant(new Variant(modLoc("block/" + key.getPath())))', 'BlockModelGenerators.plainVariant(modLoc("block/" + key.getPath()))')
+                                .replace(", ClientItem.Properties.DEFAULT", "")
+                                .replace("new DollEntitySpecialRenderer.Unbaked()),", "new DollEntitySpecialRenderer.Unbaked())")
+                                .replace("new CustomDollSpecialRenderer.Unbaked()),", "new CustomDollSpecialRenderer.Unbaked())")
+                                .replace("ClientItem.Properties.DEFAULT);", ");")
+                        }
+                    }
+                    filesMatching("**/CuboidItemModelWrapperMixin.java") {
+                        filter { String line -> line
+                                .replace("net.minecraft.client.resources.model.cuboid.ItemTransform", "net.minecraft.client.renderer.block.model.ItemTransform")
+                                .replace("net.minecraft.client.renderer.item.CuboidItemModelWrapper", "net.minecraft.client.renderer.item.BlockModelWrapper")
+                                .replace("@Mixin(CuboidItemModelWrapper.class)", "@Mixin(BlockModelWrapper.class)")
+                                .replace("layer.setItemTransform(", "layer.setTransform(")
+                        }
+                    }
+                    filesMatching("**/mixin/client/MinecraftMixin.java") {
+                        filter { String line ->
+                            line.contains("reloadResourcePacks(ZLnet/minecraft/client/GameLoadCookie;") ? "" : line
+                        }
+                    }
+                }
+                if (geckoFour && side == "client") {
+                    filesMatching(["**/client/gui/*.java", "**/CustomDollAssets.java", "**/DollKeybinds.java", "**/LivingEntityRendererMixin.java"]) {
+                        filter { String line -> translateLegacyClientLine(line) }
+                    }
+                    filesMatching("**/KaleidoscopeDollClient.java") {
+                        filter { String line -> line
+                                .replaceAll(/import .*Doll(?:Entity)?ItemModel.*;/, "")
+                                .replace("ModelLoadingPlugin.register(plugin -> {", "ModelLoadingPlugin.register(DollMachineRender::registerModels); /*")
+                                .replace("        MenuScreens.register", "        */ MenuScreens.register")
+                        }
+                    }
+                    filesMatching("**/JavaDollModels.java") {
+                        filter { String line -> line.replace("SubmitNodeCollector", "MultiBufferSource")
+                                .replace("submitCentered(", "renderCentered(")
+                                .replace("int light, int outline)", "int light, int overlay)")
+                                .replace("model.submit(pose, collector, light, OverlayTexture.NO_OVERLAY, outline)", "model.render(pose, collector, light, overlay)")
+                                .replace("ItemDisplayContext.NONE, client.level", "ItemDisplayContext.NONE, false, client.level")
+                        }
+                    }
+                    filesMatching("**/DollPoseStack.java") {
+                        filter { String line -> line.replace("Quaternionfc rotation", "Quaternionf rotation").replace("import org.joml.Quaternionfc;", "import org.joml.Quaternionf;") }
+                    }
+                }
+                if (preItemDefinitions && side == "client") {
+                    exclude "**/JavaDollModels.java", "**/DollRenderStateDuck.java", "**/EntityRenderStateMixin.java",
+                            "**/EntityRendererMixin.java", "**/LivingEntityRendererMixin.java"
+                    filesMatching("**/client/gui/*.java") {
+                        filter { String line -> line.replace("net.minecraft.client.renderer.RenderType::guiTextured, ", "") }
+                    }
+                    filesMatching("**/KaleidoscopeDollClient.java") {
+                        filter { String line -> line
+                            .replaceAll(/import .*SpecialModelRenderers.*;/, "")
+                            .replaceAll(/import .*Doll(?:Entity)?SpecialRenderer.*;/, "")
+                            .replace("        SpecialModelRenderers.ID_MAPPER.put(", "        /* SpecialModelRenderers.ID_MAPPER.put(")
+                            .replace("        ModelLoadingPlugin.register(DollMachineRender::registerModels);", "        */ com.github.ysbbbbbb.kaleidoscopedoll.client.render.LegacyDollItems.register(); ModelLoadingPlugin.register(DollMachineRender::registerModels);")
+                            .replace("BuiltInRegistries.ITEM.getValue(", "BuiltInRegistries.ITEM.get(")
+                            .replace("stack.get(DataComponents.ITEM_MODEL)", "com.github.ysbbbbbb.kaleidoscopedoll.item.crafting.DollFunctionRecipe.getDollModel(stack)")
+                        }
+                    }
+                }
+                if (target == "1.21.4" && side == "main") {
+                    filesMatching("**/VersionedRecipeProvider.java") {
+                        filter { String line -> line.replace("VersionedRecipeProvider.this.buildRecipes(this::stonecutterResultFromBase);",
+                                "VersionedRecipeProvider.this.buildRecipes((category, result, base, count) -> net.minecraft.data.recipes.SingleItemRecipeBuilder.stonecutting(net.minecraft.world.item.crafting.Ingredient.of(base), category, result, count).unlockedBy(getHasName(base), has(base)).save(output, net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE, net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll.MOD_ID, getConversionRecipeName(result, base) + \"_stonecutting\"))));")
+                        }
+                    }
+                }
+                if (beforeComponents) {
+                    if (side == "main") {
+                        exclude "**/NetworkHandler.java", "**/DollPackPackets.java", "**/ModDataComponent.java",
+                                "**/AbstractHurtingProjectileMixin.java", "**/AbstractWindChargeMixin.java", "**/WindChargeDollCarrier.java",
+                                "**/DollDirectionalBlock.java", "**/BlockStateBaseMixin.java"
+                        filesMatching("**/block/*.java") {
+                            filter { String line -> translateBeforeComponentsBlockUse(line) }
+                        }
+                        filesMatching("**/block/entity/CustomDollBlockEntity.java") {
+                            filter { String line -> line
+                                .replace("    @Override", "")
+                                .replace("protected void applyImplicitComponents(", "/* protected void applyImplicitComponents(")
+                                .replace("public String getModelId()", "*/ public String getModelId()")
+                            }
+                        }
+                        filesMatching("**/entity/DollEntity.java") {
+                            filter { String line -> line
+                                .replace("protected Vec3 getPassengerAttachmentPoint(Entity entity, EntityDimensions dimensions, float partialTick)", "public double getMyRidingOffset()")
+                                .replace("return new Vec3(0, 0.625, 0);", "return 0.125;")
+                                .replace("return new Vec3(0, 0.8125, 0);", "return 0.3125;")
+                            }
+                        }
+                        filesMatching("**/block/entity/DollMachineBlockEntity.java") {
+                            filter { String line -> line.replace("dolls.reversed()", "com.google.common.collect.Lists.reverse(dolls)") }
+                        }
+                        filesMatching("**/item/crafting/DollEntityCraftingRecipe.java") {
+                            filter { String line -> line.replace("public DollEntityCraftingRecipe(ResourceLocation id,", "public DollEntityCraftingRecipe(net.minecraft.resources.ResourceLocation id,") }
+                        }
+                        filesMatching("**/compat/jei/*RecipeMaker.java") {
+                            filter { String line -> line
+                                .replace("import net.minecraft.world.item.crafting.RecipeHolder;", "")
+                                .replace("RecipeHolder<CraftingRecipe>", "CraftingRecipe")
+                                .replace("new ShapelessRecipe(GROUP,", "new ShapelessRecipe(id, GROUP,")
+                                .replace("recipes.add(new RecipeHolder<>(id, recipe));", "recipes.add(recipe);")
+                            }
+                        }
+                        filesMatching(["**/datagen/AdvancementGenerator.java", "**/datagen/DollCriteria.java", "**/datagen/LootTableGenerator.java"]) {
+                            filter { String line -> line
+                                .replace("import net.minecraft.advancements.Criterion;", "import net.minecraft.advancements.CriterionTriggerInstance;")
+                                .replace("Criterion<?>", "CriterionTriggerInstance")
+                                .replace("super(output, registryLookup);", "super(output);")
+                                .replace("generateAdvancement(HolderLookup.Provider registryLookup, Consumer<AdvancementHolder> saver)", "generateAdvancement(Consumer<Advancement> saver)")
+                                .replace("AdvancementHolder", "Advancement")
+                                .replace("AdvancementRequirements.Strategy.", "RequirementsStrategy.")
+                                .replace("root ? Optional.of(BACKGROUND) : Optional.empty()", "root ? BACKGROUND : null")
+                                .replace("Optional.empty(), AdvancementType", "null, AdvancementType")
+                                .replace("AdvancementType.", "FrameType.")
+                            }
+                        }
+                        filesMatching("**/item/CustomDollItem.java") {
+                            filter { String line -> line.replace("    public static void addCreativeTab(", """
+    @Override
+    protected boolean updateCustomBlockEntityTag(BlockPos pos, Level level, @Nullable Player player, ItemStack stack, BlockState state) {
+        boolean changed = super.updateCustomBlockEntityTag(pos, level, player, stack, state);
+        String id = getModelId(stack);
+        if (id != null && level.getBlockEntity(pos) instanceof CustomDollBlockEntity doll) {
+            doll.setModelId(id);
+            return true;
+        }
+        return changed;
+    }
+
+    public static void addCreativeTab(""") }
+                        }
+                        filesMatching("**/item/crafting/DollFunctionRecipe.java") {
+                            filter { String line -> line
+                                .replace("result.set(com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, ", "com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.set(result, com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION, ")
+                                .replace("stack.get(com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION)", "com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.get(stack, com.github.ysbbbbbb.kaleidoscopedoll.init.ModDataComponent.LEGACY_DOLL_FUNCTION)")
+                            }
+                        }
+                    } else {
+                        filesMatching(["**/ServerDollPackCache.java", "**/CustomDollConfigPackSource.java"]) {
+                            filter { String line -> translateBeforeComponentsClientPack(line) }
+                        }
+                        filesMatching("**/mixin/client/MinecraftMixin.java") {
+                            filter { String line -> line
+                                .replaceAll(/^.*reloadResourcePacks\(ZLnet\/minecraft\/client\/GameLoadCookie;.+$/, "")
+                                .replace('ZLnet/minecraft/client/Minecraft$GameLoadCookie;', "Z")
+                                .replace(", @Coerce Object cookie", "")
+                                .replace("import org.spongepowered.asm.mixin.injection.Coerce;", "")
+                            }
+                        }
+                        filesMatching("**/BedrockCube*.java") {
+                            filter { String line -> line
+                                .replace("consumer.addVertex(", "consumer.vertex(")
+                                .replace(".setColor(", ".color(")
+                                .replace(".setUv(", ".uv(")
+                                .replace(".setOverlay(", ".overlayCoords(")
+                                .replace(".setLight(", ".uv2(")
+                                .replaceAll(/\.setNormal\((.+)\);/, '.normal($1).endVertex();')
+                            }
+                        }
+                        filesMatching("**/ComputerMenuScreen.java") {
+                            filter { String line -> line
+                                .replace("moveCursorToEnd(false)", "moveCursorToEnd()")
+                                .replace("double mouseY, double scrollX, double scrollY", "double mouseY, double scrollY")
+                            }
+                        }
+                        filesMatching("**/KaleidoscopeDollClient.java") {
+                            filter { String line -> line.replace("stack, tooltipContext, tooltipDisplay, lines", "stack, tooltipFlag, lines") }
+                        }
+                    }
+                    filter { String line -> translateBeforeComponentsLine(line) }
+                }
+            }
+        }
+    }
+    if (geckoFour) {
+        from("src/compat/1.21.4/main") {
+            into("main")
+            if (preItemDefinitions) exclude "**/InterpolatingDollEntity.java"
+            if (beforeComponents) {
+                filesMatching("**/LegacyDollNbt.java") {
+                    filter { String line -> line.replace("registries.createSerializationContext(NbtOps.INSTANCE)", "NbtOps.INSTANCE") }
+                }
+            }
+        }
+        from("src/compat/1.21.4/client") {
+            into("client")
+            if (preItemDefinitions) {
+                exclude "**/*SpecialRenderer.java", "**/DollLayerPose*.java", "**/CuboidItemModelWrapperMixin.java", "**/CustomHeadLayerMixin.java",
+                        "**/DollEntityRender.java", "**/CustomDollRender.java", "**/WindChargeRendererMixin.java", "**/BlockStateGenerator.java"
+                filesMatching("**/LegacyDollRender.java") {
+                    filter { String line -> line.replace("(T animatable, GeoRenderer<T> renderer)", "(T animatable)") }
+                }
+            }
+            if (beforeComponents) filter { String line -> translateBeforeComponentsLine(line) }
+        }
+    }
+    if (beforeComponents) {
+        from("src/compat/1.21.1/main") {
+            into("main")
+            exclude "**/VersionedRecipeProvider.java", "**/WindChargeItemMixin.java"
+            filesMatching("**/InterpolatingDollEntity.java") {
+                filter { String line -> line.replace("float pitch, int steps)", "float pitch, int steps, boolean teleport)")
+                        .replace("if (steps <= 0)", "if (teleport || steps <= 0)")
+                        .replace("lerpPositionAndRotationStep(steps--, target.x, target.y, target.z, yaw, pitch);", "double alpha = 1.0 / steps--; setPos(net.minecraft.util.Mth.lerp(alpha, getX(), target.x), net.minecraft.util.Mth.lerp(alpha, getY(), target.y), net.minecraft.util.Mth.lerp(alpha, getZ(), target.z)); setRot(getYRot() + net.minecraft.util.Mth.wrapDegrees(yaw - getYRot()) * (float) alpha, net.minecraft.util.Mth.lerp((float) alpha, getXRot(), pitch));")
+                }
+            }
+            filter { String line -> translateBeforeComponentsLine(line) }
+        }
+        from("src/compat/1.21.1/client") {
+            into("client")
+            exclude "**/WindChargeRendererMixin.java"
+            filesMatching("**/CustomHeadLayerMixin.java") {
+                filter { String line -> line.replace("entity.getItemBySlot(EquipmentSlot.HEAD).get(ModDataComponent.DOLL_ON_HELMET)", "ModDataComponent.get(entity.getItemBySlot(EquipmentSlot.HEAD), ModDataComponent.DOLL_ON_HELMET)") }
+            }
+            filter { String line -> translateBeforeComponentsLine(line) }
+        }
+    }
+    if (target != "1.21.4") {
+        from("src/compat/${target}/main") { into("main") }
+        from("src/compat/${target}/client") { into("client") }
+    }
+    filteringCharset = "UTF-8"
+    into(layout.buildDirectory.dir("legacy-sources"))
+}
+
+sourceSets {
+    main.java.setSrcDirs([sourceTranslation.map { it.destinationDir.toPath().resolve("main").toFile() }])
+    client.java.setSrcDirs([sourceTranslation.map { it.destinationDir.toPath().resolve("client").toFile() }])
+}

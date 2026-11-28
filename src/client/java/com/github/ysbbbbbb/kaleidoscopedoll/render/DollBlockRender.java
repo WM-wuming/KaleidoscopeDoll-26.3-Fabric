@@ -1,5 +1,6 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.render;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollBlockSubmission;
 import com.geckolib.renderer.GeoBlockRenderer;
 import com.github.ysbbbbbb.kaleidoscopedoll.block.entity.DollBlockEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -34,7 +35,7 @@ public class DollBlockRender extends GeoBlockRenderer<DollBlockEntity, DollBlock
     public void submit(DollBlockRenderState state, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, CameraRenderState camera) {
         poseStack.pushPose();
         AnimatedRootModel.apply(this, state, poseStack, camera, 0.5);
-        submitNodeCollector.submitMovingBlock(poseStack, state.movingBlockRenderState, 0);
+        DollBlockSubmission.submit(submitNodeCollector, poseStack, state.movingBlockRenderState, 0);
         poseStack.popPose();
     }
 }

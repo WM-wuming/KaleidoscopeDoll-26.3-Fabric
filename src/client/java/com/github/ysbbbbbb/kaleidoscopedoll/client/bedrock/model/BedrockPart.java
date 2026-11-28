@@ -1,5 +1,6 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.client.bedrock.model;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollPoseStack;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -107,7 +108,7 @@ public class BedrockPart {
 
     public void translateAndRotateAndScale(PoseStack poseStack) {
         translateAndRotate(poseStack);
-        poseStack.rotate(additionalQuaternion);
+        DollPoseStack.rotate(poseStack, additionalQuaternion);
         poseStack.scale(xScale, yScale, zScale);
     }
 

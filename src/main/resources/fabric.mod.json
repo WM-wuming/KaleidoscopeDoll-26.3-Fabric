@@ -32,8 +32,8 @@
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
     "geckolib": ">=${geckolib_version}",
-    "minecraft": "~26.3",
-    "java": ">=25",
+    "minecraft": "${minecraft_version}",
+    "java": ">=${java_version}",
     "forgeconfigapiport": "*"
   }
 }

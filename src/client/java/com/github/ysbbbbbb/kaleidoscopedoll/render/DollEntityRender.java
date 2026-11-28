@@ -1,5 +1,7 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.render;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollBlockSubmission;
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollPoseStack;
 import com.geckolib.renderer.GeoEntityRenderer;
 import com.geckolib.renderer.base.RenderPassInfo;
 import com.github.ysbbbbbb.kaleidoscopedoll.client.bedrock.BedrockModel;
@@ -88,8 +90,8 @@ public class DollEntityRender extends GeoEntityRenderer<DollEntity, DollEntityRe
         poseStack.translate(state.translation.x, state.translation.y, state.translation.z);
 
         // 应用旋转
-        poseStack.rotateDegrees(Axis.YP, -state.yaw);
-        poseStack.rotateDegrees(Axis.XP, state.pitch);
+        DollPoseStack.rotateDegrees(poseStack, Axis.YP, -state.yaw);
+        DollPoseStack.rotateDegrees(poseStack, Axis.XP, state.pitch);
 
         // 应用缩放变换
         poseStack.scale(state.scale.x, state.scale.y, state.scale.z);
@@ -107,7 +109,7 @@ public class DollEntityRender extends GeoEntityRenderer<DollEntity, DollEntityRe
         } else if (StringUtils.isNotBlank(state.customDollId)) {
             renderCustom(state.customDollId, poseStack, submitNodeCollector, state.lightCoords);
         } else if (!blockState.isAir()) {
-            submitNodeCollector.submitMovingBlock(poseStack, state.movingBlockRenderState, state.outlineColor);
+            DollBlockSubmission.submit(submitNodeCollector, poseStack, state.movingBlockRenderState, state.outlineColor);
         }
 
         // 渲染持有物品
@@ -115,9 +117,9 @@ public class DollEntityRender extends GeoEntityRenderer<DollEntity, DollEntityRe
             poseStack.pushPose();
             poseStack.translate(state.itemTranslation.x, state.itemTranslation.y, state.itemTranslation.z);
             poseStack.scale(state.itemScale.x, state.itemScale.y, state.itemScale.z);
-            poseStack.rotateDegrees(Axis.XP, state.itemRotation.x);
-            poseStack.rotateDegrees(Axis.YP, state.itemRotation.y);
-            poseStack.rotateDegrees(Axis.ZP, state.itemRotation.z);
+            DollPoseStack.rotateDegrees(poseStack, Axis.XP, state.itemRotation.x);
+            DollPoseStack.rotateDegrees(poseStack, Axis.YP, state.itemRotation.y);
+            DollPoseStack.rotateDegrees(poseStack, Axis.ZP, state.itemRotation.z);
             state.holdItemState.submit(poseStack, submitNodeCollector, state.lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor);
             poseStack.popPose();
         }
@@ -147,8 +149,8 @@ public class DollEntityRender extends GeoEntityRenderer<DollEntity, DollEntityRe
 
         poseStack.pushPose();
         poseStack.translate(0.5, 1.5, 0.5);
-        poseStack.rotate(Axis.ZN.rotationDegrees(180));
-        poseStack.rotate(Axis.YN.rotationDegrees(180));
+        DollPoseStack.rotate(poseStack, Axis.ZN.rotationDegrees(180));
+        DollPoseStack.rotate(poseStack, Axis.YN.rotationDegrees(180));
 
         final BedrockModel finalModel = model;
         submitNodeCollector.submitCustomGeometry(poseStack, RenderTypes.entityCutout(texture), (pose, buffer) -> {

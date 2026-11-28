@@ -14,7 +14,6 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -32,7 +31,7 @@ import java.util.List;
  * 礼品盲盒方块：与 1.20 版本一致，右键无任何交互，
  * 破坏时掉落预装的玩偶（getDrops 附加），盒子本体没有 loot table，破坏即被消耗。
  */
-public class DollGiftBoxBlock extends HorizontalDirectionalBlock implements EntityBlock {
+public class DollGiftBoxBlock extends DollDirectionalBlock implements EntityBlock {
     private static final VoxelShape SHAPE = Block.box(1.0d, 0.0d, 1.0d, 15.0d, 15.0d, 15.0d);
 
     public static Properties giftBoxProperties() {
@@ -44,7 +43,7 @@ public class DollGiftBoxBlock extends HorizontalDirectionalBlock implements Enti
     }
 
     public DollGiftBoxBlock(Properties properties) {
-        super(properties);
+        super(properties, DollGiftBoxBlock::new);
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
 

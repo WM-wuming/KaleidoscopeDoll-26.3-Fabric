@@ -8,3 +8,10 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+
+// Loom's launch configuration includes Minecraft jar paths and must not be shared across versions.
+def selectedMinecraft = providers.gradleProperty("minecraftTarget").orNull
+if (selectedMinecraft != null && selectedMinecraft != "26.3" &&
+        selectedMinecraft ==~ /\d+\.\d+(?:\.\d+)?/ && gradle.startParameter.projectCacheDir == null) {
+    gradle.startParameter.projectCacheDir = new File(settingsDir, ".gradle/minecraft-${selectedMinecraft}")
+}

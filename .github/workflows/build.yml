@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [26.3-fabric]
+    branches: [fabric]
   pull_request:
-    branches: [26.3-fabric]
+    branches: [fabric]
   workflow_dispatch:
 
 permissions:
@@ -18,32 +18,69 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - minecraft: '1.20.1'
+            target_java: '17'
+            output: build/minecraft-1.20.1/libs
+          - minecraft: '1.21.1'
+            target_java: '21'
+            output: build/minecraft-1.21.1/libs
+          - minecraft: '1.21.4'
+            target_java: '21'
+            output: build/minecraft-1.21.4/libs
+          - minecraft: '1.21.10'
+            target_java: '21'
+            output: build/minecraft-1.21.10/libs
+          - minecraft: '26.1'
+            target_java: '25'
+            output: build/minecraft-26.1/libs
+          - minecraft: '26.1.2'
+            target_java: '25'
+            output: build/minecraft-26.1.2/libs
+          - minecraft: '26.2'
+            target_java: '25'
+            output: build/minecraft-26.2/libs
+          - minecraft: '26.3'
+            target_java: '25'
+            output: build/libs
     steps:
       - name: Check out code
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
-      - name: Set up Java 25
+      - name: Set up target JDK ${{ matrix.target_java }}
+        if: matrix.target_java != '25'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.target_java }}
+      - name: Set up JDK 25 for Gradle and Loom
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '25'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
-      - name: Build
-        run: ./gradlew build --console=plain
+      - name: Build and run world tests
+        run: >-
+          ./gradlew "-PminecraftTarget=${{ matrix.minecraft }}"
+          "-Porg.gradle.java.installations.fromEnv=JAVA_HOME_${{ matrix.target_java }}_X64"
+          build runGameTest --console=plain
       - name: Upload mod JAR
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: kaleidoscopedoll-26.3-fabric
+          name: kaleidoscopedoll-${{ matrix.minecraft }}-fabric
           path: |
-            build/libs/kaleidoscopedoll-*.jar
-            !build/libs/*-sources.jar
+            ${{ matrix.output }}/kaleidoscopedoll-*.jar
+            !${{ matrix.output }}/*-sources.jar
           if-no-files-found: error
           retention-days: 7
 
   release:
-    if: github.ref == 'refs/heads/26.3-fabric' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/fabric' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 5

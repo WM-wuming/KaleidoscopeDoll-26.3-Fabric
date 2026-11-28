@@ -1,5 +1,6 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.mixin.client;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollPoseStack;
 import com.github.ysbbbbbb.kaleidoscopedoll.client.render.DollRenderStateDuck;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -30,7 +31,7 @@ public class WindChargeRendererMixin {
             return;
         }
         poseStack.pushPose();
-        poseStack.rotate(camera.orientation);
+        DollPoseStack.rotate(poseStack, camera.orientation);
         duck.kaleidoscopeDoll$getDollItemState().submit(
             poseStack, submitNodeCollector, state.lightCoords, OverlayTexture.NO_OVERLAY, state.outlineColor
         );

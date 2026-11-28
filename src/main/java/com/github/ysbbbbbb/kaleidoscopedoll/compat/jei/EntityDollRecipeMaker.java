@@ -37,7 +37,7 @@ public class EntityDollRecipeMaker {
             Identifier id = Identifier.fromNamespaceAndPath(ModIds.MINECRAFT_ID, GROUP + "." + key.getPath());
             ShapelessRecipe recipe = new ShapelessRecipe(new Recipe.CommonInfo(true),
                     new CraftingRecipe.CraftingBookInfo(CraftingBookCategory.MISC, GROUP),
-                    ItemStackTemplate.fromStack(output), inputs);
+                    ItemStackTemplate.fromNonEmptyStack(output), inputs);
 
             recipes.add(new RecipeHolder<>(ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE, id), recipe));
         });

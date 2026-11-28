@@ -1,6 +1,7 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.client.custom;
 
 import com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll;
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollPackResources;
 import com.github.ysbbbbbb.kaleidoscopedoll.network.DollPackPackets;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -126,7 +127,7 @@ public final class ClientDollPackSync {
                 KaleidoscopeDoll.LOGGER.warn("Could not open server doll config {}", path);
                 return packs;
             }
-            pack.open().forEach(sources::add);
+            DollPackResources.add(pack, sources);
         }
         // The resource manager owns these handles; the pack repository never sees them.
         sources.addAll(packs);

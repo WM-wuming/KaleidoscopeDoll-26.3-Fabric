@@ -1,40 +1,29 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.datagen;
 
 import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
-import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider;
-import net.minecraft.advancements.Advancement;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.recipes.RecipeCategory;
-import net.minecraft.data.recipes.RecipeProvider;
-import net.minecraft.data.worldgen.BootstrapContext;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.DyeColor;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.crafting.Recipe;
 
 import java.util.concurrent.CompletableFuture;
 
 import static com.github.ysbbbbbb.kaleidoscopedoll.event.ModRegisterEvent.DOLL_ITEMS;
 
-public class ModRecipeProvider extends FabricRecipeProvider {
+public class ModRecipeProvider extends VersionedRecipeProvider {
     public ModRecipeProvider(FabricPackOutput output, CompletableFuture<HolderLookup.Provider> registries) {
         super(output, registries);
     }
 
     @Override
-    protected RecipeProvider createRecipeProvider(HolderLookup.Provider registries, BootstrapContext<Recipe<?>> recipeOutput, BootstrapContext<Advancement> advancementOutput) {
-        return new RecipeProvider(recipeOutput, advancementOutput) {
-            @Override
-            public void buildRecipes() {
-                for (Item doll : DOLL_ITEMS) {
-                    DyeColor color = getStonecuttingWool(BuiltInRegistries.ITEM.getKey(doll).getPath());
-                    if (color != null) {
-                        stonecutterResultFromBase(RecipeCategory.DECORATIONS, doll, Items.WOOL.pick(color), 1);
-                    }
-                }
+    protected void buildRecipes(StonecuttingOutput output) {
+        for (Item doll : DOLL_ITEMS) {
+            DyeColor color = getStonecuttingWool(BuiltInRegistries.ITEM.getKey(doll).getPath());
+            if (color != null) {
+                output.add(RecipeCategory.DECORATIONS, doll, TagItem.wool(color), 1);
             }
-        };
+        }
     }
 
     private static DyeColor getStonecuttingWool(String dollPath) {

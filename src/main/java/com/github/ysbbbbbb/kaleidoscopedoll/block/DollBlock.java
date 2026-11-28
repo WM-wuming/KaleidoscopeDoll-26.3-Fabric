@@ -39,8 +39,10 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.function.Function;
+
 @SuppressWarnings("deprecation")
-public class DollBlock extends HorizontalDirectionalBlock implements SimpleWaterloggedBlock, EntityBlock {
+public class DollBlock extends DollDirectionalBlock implements SimpleWaterloggedBlock, EntityBlock {
     private static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
     private static final VoxelShape DOLL_SHAPE = Block.box(2.0d, 0.0d, 2.0d, 14.0d, 12.0d, 14.0d);
 
@@ -63,7 +65,11 @@ public class DollBlock extends HorizontalDirectionalBlock implements SimpleWater
     }
 
     public DollBlock(BlockBehaviour.Properties properties) {
-        super(properties);
+        this(properties, DollBlock::new);
+    }
+
+    protected DollBlock(Properties properties, Function<Properties, ? extends DollBlock> factory) {
+        super(properties, factory);
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.SOUTH)
                 .setValue(WATERLOGGED, false));
     }

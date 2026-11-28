@@ -1,5 +1,6 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.client.render;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollPoseStack;
 import com.geckolib.renderer.GeoBlockRenderer;
 import com.github.ysbbbbbb.kaleidoscopedoll.block.entity.CustomDollBlockEntity;
 import com.github.ysbbbbbb.kaleidoscopedoll.client.bedrock.BedrockModel;
@@ -46,7 +47,7 @@ public class CustomDollRender extends GeoBlockRenderer<CustomDollBlockEntity, Cu
             poseStack.pushPose();
             AnimatedRootModel.apply(this, state, poseStack, camera, 0.5);
             poseStack.translate(0.5, 0, 0.5);
-            poseStack.rotate(Axis.YN.rotationDegrees(state.facing.toYRot() + 180));
+            DollPoseStack.rotate(poseStack, Axis.YN.rotationDegrees(state.facing.toYRot() + 180));
             poseStack.translate(-0.5, 0, -0.5);
             JavaDollModels.submitCentered(state.javaModel, poseStack, submitNodeCollector, state.lightCoords, 0);
             poseStack.popPose();
@@ -79,8 +80,8 @@ public class CustomDollRender extends GeoBlockRenderer<CustomDollBlockEntity, Cu
         poseStack.pushPose();
         AnimatedRootModel.apply(this, state, poseStack, camera, 0.5);
         poseStack.translate(0.5, 1.5, 0.5);
-        poseStack.rotate(Axis.ZN.rotationDegrees(180));
-        poseStack.rotate(Axis.YN.rotationDegrees(180 - state.facing.get2DDataValue() * 90));
+        DollPoseStack.rotate(poseStack, Axis.ZN.rotationDegrees(180));
+        DollPoseStack.rotate(poseStack, Axis.YN.rotationDegrees(180 - state.facing.get2DDataValue() * 90));
 
         final BedrockModel finalModel = model;
         final int light = state.lightCoords;

@@ -157,7 +157,11 @@ public class TagItem extends FabricTagsProvider<Item> {
                 }));
 
         for (DyeColor color : DyeColor.values()) {
-            this.builder(COMPUTER_TOKENS).add(BuiltInRegistries.ITEM.getResourceKey(Items.WOOL.pick(color)).orElseThrow());
+            this.builder(COMPUTER_TOKENS).add(BuiltInRegistries.ITEM.getResourceKey(wool(color)).orElseThrow());
         }
+    }
+
+    static Item wool(DyeColor color) {
+        return BuiltInRegistries.ITEM.getOptional(Identifier.withDefaultNamespace(color.getName() + "_wool")).orElseThrow();
     }
 }

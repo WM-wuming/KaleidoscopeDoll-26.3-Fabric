@@ -1,0 +1,51 @@
+ext.translatePreItemDefinitionLine = { String line ->
+    line
+        .replace('import net.minecraft.world.level.ScheduledTickAccess;', '')
+        .replace('protected BlockState updateShape(BlockState currentState, LevelReader level, ScheduledTickAccess ticks, BlockPos currentPos,', 'public BlockState updateShape(BlockState currentState,')
+        .replace('protected BlockState updateShape(BlockState state, LevelReader level, ScheduledTickAccess ticks, BlockPos currentPos,', 'public BlockState updateShape(BlockState state,')
+        .replace('Direction direction, BlockPos neighborPos, BlockState neighborState, RandomSource random) {', 'Direction direction, BlockState neighborState, net.minecraft.world.level.LevelAccessor level, BlockPos currentPos, BlockPos neighborPos) {')
+        .replace('Direction facing, BlockPos facingPos, BlockState facingState, RandomSource random) {', 'Direction facing, BlockState facingState, net.minecraft.world.level.LevelAccessor level, BlockPos currentPos, BlockPos facingPos) {')
+        .replace('ticks.scheduleTick(', 'level.scheduleTick(')
+        .replace('updateShape(currentState, level, ticks, currentPos, direction, neighborPos, neighborState, random)', 'updateShape(currentState, direction, neighborState, level, currentPos, neighborPos)')
+        .replace('updateShape(state, level, ticks, currentPos, facing, facingPos, facingState, random)', 'updateShape(state, facing, facingState, level, currentPos, facingPos)')
+        .replace('protected ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state, boolean includeData)', 'public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state)')
+        .replace('super.getCloneItemStack(level, pos, state, includeData)', 'super.getCloneItemStack(level, pos, state)')
+        .replace('level.getMaxY() - 1', 'level.getMaxBuildHeight() - 1')
+        .replaceAll(/(BuiltInRegistries\.\w+)\.getValue\(/, '$1.get(')
+        .replaceAll(/\.setId\((?:Mod(?:Blocks|Items)\.)?(?:blockKey|itemKey)\((?:"[^"]*"|[^()]+)\)\)/, '')
+        .replace('.useBlockDescriptionPrefix()', '')
+        .replaceAll(/\.equippable\((?:net\.minecraft\.world\.entity\.)?EquipmentSlot\.HEAD\)/, '')
+        .replace('addBlocks(ModRegisterEvent.DOLL_BLOCKS.values())', 'addBlocks(ModRegisterEvent.DOLL_BLOCKS.values().toArray(Block[]::new))')
+        .replace('.build(ResourceKey.create(Registries.ENTITY_TYPE, ResourceLocation.fromNamespaceAndPath(KaleidoscopeDoll.MOD_ID, "doll")))', '.build(KaleidoscopeDoll.MOD_ID + ":doll")')
+        .replace('net.minecraft.world.item.crafting.CustomRecipe.Serializer<>', 'net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer<>')
+        .replace('ItemUseAnimation', 'UseAnim')
+        .replace('NbtUtils.readBlockState(BuiltInRegistries.BLOCK, compound)', 'NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), compound)')
+        .replace('serverLevel.registryAccess().lookupOrThrow(Registries.ITEM).getTagOrEmpty(tag)', 'BuiltInRegistries.ITEM.getTagOrEmpty(tag)')
+        .replace('import net.minecraft.world.item.equipment.Equippable;', 'import net.minecraft.world.item.Equipable;')
+        .replace('Equippable equippable = input.get(DataComponents.EQUIPPABLE);', 'Equipable equippable = Equipable.get(input);')
+        .replace('equippable.slot()', 'equippable.getEquipmentSlot()')
+}
+
+ext.translateLegacyItemUse = { String line, boolean giftBox ->
+    if (line.contains('public InteractionResult use(Level level, Player player, InteractionHand hand)')) {
+        return line.replace('public InteractionResult use(', 'public net.minecraft.world.InteractionResultHolder<ItemStack> use(')
+    }
+    // Only the use() method uses these indent/return combinations in the two item classes.
+    if (line == '                return InteractionResult.PASS;' || (giftBox && line == '            return InteractionResult.PASS;')) {
+        return line.replace('InteractionResult.PASS', 'net.minecraft.world.InteractionResultHolder.pass(player.getItemInHand(hand))')
+    }
+    if (giftBox) {
+        return line
+            .replace('                return InteractionResult.FAIL;', '                return net.minecraft.world.InteractionResultHolder.fail(player.getItemInHand(hand));')
+            .replace('return InteractionResult.SUCCESS_SERVER.heldItemTransformedTo(player.getItemInHand(hand));', 'return net.minecraft.world.InteractionResultHolder.consume(player.getItemInHand(hand));')
+            .replace('        return InteractionResult.SUCCESS;', '        return net.minecraft.world.InteractionResultHolder.success(player.getItemInHand(hand));')
+            .replace('return this.use(context.getLevel(), player, context.getHand());', 'return this.use(context.getLevel(), player, context.getHand()).getResult();')
+    }
+    return line
+        .replace('            player.startUsingItem(hand);', '            player.startUsingItem(hand); return net.minecraft.world.InteractionResultHolder.consume(player.getItemInHand(hand));')
+        .replace('            return InteractionResult.CONSUME;', '')
+        .replace('        return InteractionResult.CONSUME;', '        return net.minecraft.world.InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide());')
+        .replace('public boolean releaseUsing(', 'public void releaseUsing(')
+        .replace('return tryThrow(stack, level, entity, timeLeft);', 'tryThrow(stack, level, entity, timeLeft);')
+        .replace('return InteractionResult.SUCCESS_SERVER;', 'return InteractionResult.CONSUME;')
+}

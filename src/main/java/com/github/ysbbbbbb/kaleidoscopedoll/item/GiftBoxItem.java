@@ -1,5 +1,6 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.item;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollInventory;
 import com.github.ysbbbbbb.kaleidoscopedoll.datagen.TagItem;
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModBlocks;
 import com.github.ysbbbbbb.kaleidoscopedoll.init.ModItems;
@@ -13,7 +14,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.TagKey;
-import net.minecraft.util.Prediction;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
@@ -123,7 +123,7 @@ public class GiftBoxItem extends BlockItem {
 
             // Creative block interactions restore the original stack's count, so replace it.
             player.setItemInHand(hand, giftBox.copyWithCount(giftBox.getCount() - 1));
-            player.getInventory().placeItemBackInInventory(doll, Prediction.SERVER_ONLY);
+            DollInventory.returnToInventory(player, doll);
             playOpenEffects(serverLevel, player.getX(), player.getY() + 1, player.getZ());
             return InteractionResult.SUCCESS_SERVER.heldItemTransformedTo(player.getItemInHand(hand));
         }

@@ -16,8 +16,10 @@ import net.minecraft.client.data.models.blockstates.PropertyDispatch;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.client.data.models.model.ItemModelUtils;
 import net.minecraft.client.renderer.block.dispatch.Variant;
+import net.minecraft.client.renderer.block.dispatch.VariantMutator;
 import net.minecraft.client.renderer.item.ClientItem;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.item.Item;
@@ -25,6 +27,13 @@ import net.minecraft.world.item.Item;
 import java.util.List;
 
 public class BlockStateGenerator extends FabricModelProvider {
+    private static final PropertyDispatch<VariantMutator> HORIZONTAL_ROTATION =
+            PropertyDispatch.modify(BlockStateProperties.HORIZONTAL_FACING)
+                    .select(Direction.NORTH, BlockModelGenerators.NOP)
+                    .select(Direction.EAST, BlockModelGenerators.Y_ROT_90)
+                    .select(Direction.SOUTH, BlockModelGenerators.Y_ROT_180)
+                    .select(Direction.WEST, BlockModelGenerators.Y_ROT_270);
+
     public BlockStateGenerator(FabricPackOutput output) {
         super(output);
     }
@@ -36,7 +45,7 @@ public class BlockStateGenerator extends FabricModelProvider {
             Identifier location = modLoc("block/doll/" + key.getPath());
             MultiVariant variant = BlockModelGenerators.variant(new Variant(location));
             generator.blockStateOutput.accept(MultiVariantGenerator.dispatch(block, variant)
-                    .with(BlockModelGenerators.ROTATION_HORIZONTAL_FACING)
+                    .with(HORIZONTAL_ROTATION)
                     .with(PropertyDispatch.modify(BlockStateProperties.WATERLOGGED)
                             .select(true, BlockModelGenerators.NOP)
                             .select(false, BlockModelGenerators.NOP)));
@@ -46,7 +55,7 @@ public class BlockStateGenerator extends FabricModelProvider {
             Identifier key = BuiltInRegistries.BLOCK.getKey(block);
             MultiVariant variant = BlockModelGenerators.variant(new Variant(modLoc("block/" + key.getPath())));
             generator.blockStateOutput.accept(MultiVariantGenerator.dispatch(block, variant)
-                    .with(BlockModelGenerators.ROTATION_HORIZONTAL_FACING)
+                    .with(HORIZONTAL_ROTATION)
                     .with(PropertyDispatch.modify(BlockStateProperties.WATERLOGGED)
                             .select(true, BlockModelGenerators.NOP)
                             .select(false, BlockModelGenerators.NOP)));

@@ -26,7 +26,6 @@ import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.LevelEvent;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
@@ -39,13 +38,12 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
-public class DollMachineBlock extends HorizontalDirectionalBlock implements EntityBlock {
+public class DollMachineBlock extends DollDirectionalBlock implements EntityBlock {
     private static final VoxelShape SHAPE_UPPER = Block.box(1.0d, 0.0d, 1.0d, 15.0d, 8.0d, 15.0d);
     private static final VoxelShape SHAPE = Block.box(1.0d, 0.0d, 1.0d, 15.0d, 16.0d, 15.0d);
     private static final BooleanProperty LOTTERY_IN_PROGRESS = BooleanProperty.create("lottery_in_progress");
@@ -57,12 +55,12 @@ public class DollMachineBlock extends HorizontalDirectionalBlock implements Enti
                 .sound(SoundType.COPPER)
                 .strength(8f, 10f)
                 .lightLevel(s -> 2)
-                .pushReaction(PushReaction.IMMOVEABLE)
+                .pushReaction(IMMOVABLE)
                 .noOcclusion();
     }
 
     public DollMachineBlock(Properties properties) {
-        super(properties);
+        super(properties, DollMachineBlock::new);
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(FACING, Direction.NORTH)
                 .setValue(LOTTERY_IN_PROGRESS, false)

@@ -21,7 +21,7 @@ import java.util.List;
 
 public class CustomDollBlock extends DollBlock implements EntityBlock {
     public CustomDollBlock(Properties properties) {
-        super(properties);
+        super(properties, CustomDollBlock::new);
     }
 
     @Override

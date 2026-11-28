@@ -1,5 +1,6 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.render;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollPoseStack;
 import com.github.ysbbbbbb.kaleidoscopedoll.client.bedrock.BedrockModel;
 import com.github.ysbbbbbb.kaleidoscopedoll.client.custom.CustomDollLoader;
 import com.github.ysbbbbbb.kaleidoscopedoll.client.render.JavaDollModels;
@@ -121,7 +122,7 @@ public class DollEntitySpecialRenderer implements SpecialModelRenderer<ItemStack
 
         poseStack.pushPose();
         poseStack.translate(0.5, 1.5, 0.5);
-        poseStack.rotate(Axis.ZN.rotationDegrees(180));
+        DollPoseStack.rotate(poseStack, Axis.ZN.rotationDegrees(180));
 
         final BedrockModel finalModel = model;
         submitNodeCollector.submitCustomGeometry(poseStack, RenderTypes.entityCutout(texture), (pose, buffer) -> {

@@ -14,7 +14,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
@@ -31,7 +30,7 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
-public class ComputerBlock extends HorizontalDirectionalBlock {
+public class ComputerBlock extends DollDirectionalBlock {
     private static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
     private static final VoxelShape NORTH_AABB = Shapes.or(
             Block.box(0, 0, 0, 16, 4, 15),
@@ -59,7 +58,7 @@ public class ComputerBlock extends HorizontalDirectionalBlock {
     }
 
     public ComputerBlock(BlockBehaviour.Properties properties) {
-        super(properties);
+        super(properties, ComputerBlock::new);
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.SOUTH)
                 .setValue(WATERLOGGED, false));
     }

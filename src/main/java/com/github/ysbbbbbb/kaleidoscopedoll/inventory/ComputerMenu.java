@@ -1,5 +1,6 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.inventory;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollInventory;
 import com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll;
 import com.github.ysbbbbbb.kaleidoscopedoll.data.custom.ServerCustomDollLoader;
 import com.github.ysbbbbbb.kaleidoscopedoll.datagen.TagItem;
@@ -166,7 +167,7 @@ public class ComputerMenu extends AbstractContainerMenu {
         ItemStack remaining = input.getItem(0);
         if (!remaining.isEmpty()) {
             if (!player.getInventory().add(remaining)) {
-                player.drop(remaining, false, net.minecraft.util.Prediction.PREDICTED);
+                DollInventory.drop(player, remaining);
             }
             input.setItem(0, ItemStack.EMPTY);
         }

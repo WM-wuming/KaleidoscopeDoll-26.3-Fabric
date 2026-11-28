@@ -5,8 +5,6 @@ import com.github.ysbbbbbb.kaleidoscopedoll.init.ModItems;
 import net.fabricmc.fabric.api.datagen.v1.FabricPackOutput;
 import net.fabricmc.fabric.api.datagen.v1.provider.FabricAdvancementProvider;
 import net.minecraft.advancements.*;
-import net.minecraft.advancements.triggers.InventoryChangeTrigger;
-import net.minecraft.advancements.triggers.PlayerTrigger;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -31,23 +29,23 @@ public class AdvancementGenerator extends FabricAdvancementProvider {
     public void generateAdvancement(HolderLookup.Provider registryLookup, Consumer<AdvancementHolder> saver) {
         AdvancementHolder root = make(BuiltInRegistries.ITEM.getValue(id("doll_40")), "root", true)
                 .requirements(AdvancementRequirements.Strategy.OR)
-                .addCriterion("tick", PlayerTrigger.TriggerInstance.tick())
+                .addCriterion("tick", DollCriteria.tick())
                 .build(id("doll/root"));
         saver.accept(root);
 
         AdvancementHolder dollMachine = make(ModItems.DOLL_MACHINE, "doll_machine").parent(root)
-                .addCriterion("doll_machine", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.DOLL_MACHINE))
+                .addCriterion("doll_machine", DollCriteria.hasItem(ModItems.DOLL_MACHINE))
                 .build(id("doll/doll_machine"));
         saver.accept(dollMachine);
 
         saver.accept(make(ModItems.PURPLE_DOLL_GIFT_BOX, "purple_doll_gift_box").parent(dollMachine)
-                .addCriterion("purple_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.PURPLE_DOLL_GIFT_BOX))
+                .addCriterion("purple_doll_gift_box", DollCriteria.hasItem(ModItems.PURPLE_DOLL_GIFT_BOX))
                 .build(id("doll/purple_doll_gift_box")));
         saver.accept(make(ModItems.GREEN_DOLL_GIFT_BOX, "green_doll_gift_box").parent(dollMachine)
-                .addCriterion("green_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.GREEN_DOLL_GIFT_BOX))
+                .addCriterion("green_doll_gift_box", DollCriteria.hasItem(ModItems.GREEN_DOLL_GIFT_BOX))
                 .build(id("doll/green_doll_gift_box")));
         AdvancementHolder yellowGiftBox = make(ModItems.YELLOW_DOLL_GIFT_BOX, "yellow_doll_gift_box").parent(dollMachine)
-                .addCriterion("yellow_doll_gift_box", InventoryChangeTrigger.TriggerInstance.hasItems(ModItems.YELLOW_DOLL_GIFT_BOX))
+                .addCriterion("yellow_doll_gift_box", DollCriteria.hasItem(ModItems.YELLOW_DOLL_GIFT_BOX))
                 .build(id("doll/yellow_doll_gift_box"));
         saver.accept(yellowGiftBox);
 
@@ -55,7 +53,7 @@ public class AdvancementGenerator extends FabricAdvancementProvider {
                 .requirements(AdvancementRequirements.Strategy.AND);
         ModRegisterEvent.DOLL_ITEMS.stream()
                 .filter(item -> !SPECIAL_TOOLTIPS.containsKey(BuiltInRegistries.ITEM.getKey(item)))
-                .forEach(item -> fullCollection.addCriterion(BuiltInRegistries.ITEM.getKey(item).getPath(), InventoryChangeTrigger.TriggerInstance.hasItems(item)));
+                .forEach(item -> fullCollection.addCriterion(BuiltInRegistries.ITEM.getKey(item).getPath(), DollCriteria.hasItem(item)));
         saver.accept(fullCollection.rewards(AdvancementRewards.Builder.experience(100))
                 .build(id("doll/full_collection")));
     }

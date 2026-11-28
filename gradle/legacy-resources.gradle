@@ -1,0 +1,72 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+
+ext.legacyDataDirectories = [advancement: "advancements", loot_table: "loot_tables", recipe: "recipes",
+                             "tags/item": "tags/items", "tags/block": "tags/blocks"]
+
+ext.restoreLegacyResources = { File root, String target ->
+    if (!(target in ["1.21.1", "1.20.1"])) return
+    boolean beforeComponents = target == "1.20.1"
+    def json = new JsonSlurper()
+    def writeJson = { File file, Object value ->
+        file.parentFile.mkdirs()
+        file.setText(JsonOutput.prettyPrint(JsonOutput.toJson(value)) + "\n", "UTF-8")
+    }
+
+    // Before the item-definition registry, item models are loaded directly from models/item.
+    fileTree(root) { include "assets/kaleidoscope_doll/items/*.json" }.each { file ->
+        def definition = json.parse(file).model
+        def model = new File(root, "assets/kaleidoscope_doll/models/item/${file.name}")
+        if (definition.type == "minecraft:special") {
+            def base = json.parse(model)
+            base.parent = "builtin/entity"
+            writeJson(model, base)
+        } else if (!model.exists()) {
+            writeJson(model, [parent: definition.model])
+        }
+        file.delete()
+    }
+
+    def oldItem = { String id ->
+        beforeComponents && (id in ["minecraft:armadillo_scute", "minecraft:turtle_scute"]) ? "minecraft:scute" : id
+    }
+    def oldIngredient
+    oldIngredient = { value ->
+        if (value instanceof List) return value.collect(oldIngredient)
+        if (!(value instanceof String)) return value
+        return value.startsWith("#") ? [tag: value.substring(1)] : [item: oldItem(value)]
+    }
+    fileTree(root) { include "data/kaleidoscope_doll/${beforeComponents ? 'recipes' : 'recipe'}/**/*.json" }.each { file ->
+        def recipe = json.parse(file)
+        if (recipe.key) recipe.key = recipe.key.collectEntries { k, v -> [(k): oldIngredient(v)] }
+        if (recipe.ingredients) recipe.ingredients = recipe.ingredients.collect(oldIngredient)
+        if (recipe.ingredient) recipe.ingredient = oldIngredient(recipe.ingredient)
+        if (beforeComponents && recipe.type == "minecraft:stonecutting") {
+            recipe.count = recipe.result.count
+            recipe.result = recipe.result.id
+        } else if (beforeComponents && recipe.result instanceof Map && recipe.result.containsKey("id")) {
+            recipe.result.item = recipe.result.remove("id")
+        }
+        writeJson(file, recipe)
+    }
+
+    if (!beforeComponents) return
+    fileTree(root) { include "data/kaleidoscope_doll/advancements/**/*.json" }.each { file ->
+        def advancement = json.parse(file)
+        def icon = advancement.display?.icon
+        if (icon?.id) advancement.display.icon = [item: icon.id]
+        advancement.criteria?.values()?.each { criterion ->
+            if (criterion.trigger == "minecraft:inventory_changed") {
+                criterion.conditions.items?.each { predicate ->
+                    if (predicate.items instanceof String) {
+                        def item = predicate.items
+                        predicate.remove("items")
+                        if (item.startsWith("#")) predicate.tag = item.substring(1)
+                        else predicate.items = [oldItem(item)]
+                    }
+                }
+            }
+        }
+        writeJson(file, advancement)
+    }
+}

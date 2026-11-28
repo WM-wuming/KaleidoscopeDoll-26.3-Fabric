@@ -1,5 +1,7 @@
 package com.github.ysbbbbbb.kaleidoscopedoll.render;
 
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollBlockSubmission;
+import com.github.ysbbbbbb.kaleidoscopedoll.compat.DollPoseStack;
 import com.geckolib.renderer.GeoBlockRenderer;
 import com.geckolib.renderer.base.RenderPassInfo;
 import com.github.ysbbbbbb.kaleidoscopedoll.KaleidoscopeDoll;
@@ -77,7 +79,7 @@ public class DollMachineRender extends GeoBlockRenderer<DollMachineBlockEntity, 
         var shell = models.getModel(SHELL);
         var prizes = models.getModel(PRIZES);
         if (shell == null || prizes == null) {
-            collector.submitMovingBlock(pose, state.movingBlockRenderState, 0);
+            DollBlockSubmission.submit(collector, pose, state.movingBlockRenderState, 0);
             return;
         }
 
@@ -104,7 +106,7 @@ public class DollMachineRender extends GeoBlockRenderer<DollMachineBlockEntity, 
                 var frame = DollMachinePrizeMotion.sample(i, time);
                 pose.pushPose();
                 pose.translate(frame.center().scale(1 / 16.0));
-                pose.rotate(Axis.YP, (float) frame.spin());
+                DollPoseStack.rotate(pose, Axis.YP.rotation((float) frame.spin()));
                 pose.scale(frame.scale(), frame.scale(), frame.scale());
                 pose.translate(home.scale(-1 / 16.0));
                 submitPart(collector, pose, prizes.get(i), state.lightCoords);

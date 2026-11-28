@@ -170,6 +170,10 @@ public class DollEntityItem extends Item {
 
     @Override
     public boolean releaseUsing(ItemStack stack, Level level, LivingEntity entity, int timeLeft) {
+        return tryThrow(stack, level, entity, timeLeft);
+    }
+
+    private boolean tryThrow(ItemStack stack, Level level, LivingEntity entity, int timeLeft) {
         // 计算使用时间
         int useTime = this.getUseDuration(stack, entity) - timeLeft;
 
